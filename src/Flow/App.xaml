@@ -1,0 +1,22 @@
+<Application x:Class="Flow.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="clr-namespace:Flow.Infrastructure"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Controls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <infra:SecondsToTimeConverter x:Key="SecondsToTime"/>
+            <infra:BoolToVisibilityConverter x:Key="BoolToVis"/>
+            <infra:BoolToVisibilityConverter x:Key="InverseBoolToVis" Invert="True"/>
+            <infra:EqualsConverter x:Key="EqualsConv"/>
+            <infra:BoolToTextConverter x:Key="BoolToText"/>
+            <infra:RepeatGlyphConverter x:Key="RepeatGlyph"/>
+            <infra:RepeatActiveConverter x:Key="RepeatActive"/>
+            <infra:VolumeGlyphConverter x:Key="VolumeGlyph"/>
+            <infra:DbFormatConverter x:Key="DbFormat"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

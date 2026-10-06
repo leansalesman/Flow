@@ -1,0 +1,136 @@
+<Window x:Class="Flow.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:Flow.Views"
+        Title="Flow"
+        Width="1180" Height="760" MinWidth="620" MinHeight="480"
+        Background="Transparent"
+        AllowDrop="True"
+        Icon="Assets/Flow.ico"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Ideal"
+        ResizeMode="CanResize">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" GlassFrameThickness="-1" ResizeBorderThickness="6"
+                      CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <DrawingImage x:Key="ThumbPrev">
+            <DrawingImage.Drawing>
+                <GeometryDrawing Brush="White" Geometry="M2,2 L4,2 L4,14 L2,14 Z M14,2 L14,14 L5,8 Z"/>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="ThumbNext">
+            <DrawingImage.Drawing>
+                <GeometryDrawing Brush="White" Geometry="M12,2 L14,2 L14,14 L12,14 Z M2,2 L11,8 L2,14 Z"/>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="ThumbPlay">
+            <DrawingImage.Drawing>
+                <GeometryDrawing Brush="White" Geometry="M3,1 L14,8 L3,15 Z"/>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+        <DrawingImage x:Key="ThumbPause">
+            <DrawingImage.Drawing>
+                <GeometryDrawing Brush="White" Geometry="M3,2 L6.5,2 L6.5,14 L3,14 Z M9.5,2 L13,2 L13,14 L9.5,14 Z"/>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+    </Window.Resources>
+
+    <Window.TaskbarItemInfo>
+        <TaskbarItemInfo Description="Flow">
+            <TaskbarItemInfo.ThumbButtonInfos>
+                <ThumbButtonInfo Description="Previous" ImageSource="{StaticResource ThumbPrev}"/>
+                <ThumbButtonInfo Description="Play" ImageSource="{StaticResource ThumbPlay}"/>
+                <ThumbButtonInfo Description="Next" ImageSource="{StaticResource ThumbNext}"/>
+            </TaskbarItemInfo.ThumbButtonInfos>
+        </TaskbarItemInfo>
+    </Window.TaskbarItemInfo>
+
+    <Grid x:Name="RootGrid" Background="{DynamicResource ScrimBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="68"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left icon rail -->
+        <Grid x:Name="Rail" Grid.Column="0" Margin="0,0,0,14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="46"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Image Source="Assets/Flow.png" Width="22" Height="22" Margin="0,8,0,0"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,10,0,0">
+                <RadioButton Style="{StaticResource RailButton}" GroupName="Nav" Content="&#xEC4F;" ToolTip="Now Playing"
+                             IsChecked="{Binding CurrentPage, Converter={StaticResource EqualsConv}, ConverterParameter=NowPlaying}"/>
+                <RadioButton Style="{StaticResource RailButton}" GroupName="Nav" Content="&#xE8F1;" ToolTip="Library  (Ctrl+L)"
+                             IsChecked="{Binding CurrentPage, Converter={StaticResource EqualsConv}, ConverterParameter=Library}"/>
+                <RadioButton Style="{StaticResource RailButton}" GroupName="Nav" Content="&#xE90B;" ToolTip="Playlists"
+                             IsChecked="{Binding CurrentPage, Converter={StaticResource EqualsConv}, ConverterParameter=Playlists}"/>
+            </StackPanel>
+            <StackPanel Grid.Row="2" HorizontalAlignment="Center">
+                <Button Style="{StaticResource IconButton}" Width="48" Height="44" FontSize="17" Content="&#xE8E5;"
+                        Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="Open files  (Ctrl+O)"
+                        Command="{Binding OpenFilesCommand}"/>
+                <RadioButton Style="{StaticResource RailButton}" GroupName="Nav" Content="&#xE713;" ToolTip="Settings"
+                             IsChecked="{Binding CurrentPage, Converter={StaticResource EqualsConv}, ConverterParameter=Settings}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Pages + the player bar (shown on every page except Now Playing) -->
+        <Grid Grid.Column="1" Margin="0,40,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid x:Name="ContentHost">
+                <views:NowPlayingView x:Name="NowPlayingPage"/>
+                <views:LibraryView x:Name="LibraryPage" Visibility="Collapsed"/>
+                <views:PlaylistsView x:Name="PlaylistsPage" Visibility="Collapsed"/>
+                <views:SettingsView x:Name="SettingsPage" Visibility="Collapsed"/>
+            </Grid>
+            <views:MiniPlayer x:Name="PlayerBar" Grid.Row="1"
+                              Visibility="{Binding ShowPlayerBar, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+
+        <!-- Custom title bar -->
+        <Grid x:Name="TitleBar" Grid.ColumnSpan="2" Height="40" VerticalAlignment="Top">
+            <TextBlock x:Name="TitleText" Text="Flow" Margin="68,0,0,0" VerticalAlignment="Center" FontSize="12"
+                       Foreground="{DynamicResource TextTertiaryBrush}" IsHitTestVisible="False"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Button x:Name="MinButton" Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimize"
+                        WindowChrome.IsHitTestVisibleInChrome="True" Click="MinButton_Click"/>
+                <Button x:Name="MaxButton" Style="{StaticResource CaptionButton}" Content="&#xE922;"
+                        WindowChrome.IsHitTestVisibleInChrome="True" Click="MaxButton_Click"/>
+                <Button x:Name="CloseButton" Style="{StaticResource CloseCaptionButton}" Content="&#xE8BB;" ToolTip="Close"
+                        WindowChrome.IsHitTestVisibleInChrome="True" Click="CloseButton_Click"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Toast -->
+        <Border x:Name="ToastHost" Grid.ColumnSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                Margin="0,0,0,26" Padding="18,9" CornerRadius="18" IsHitTestVisible="False"
+                Background="{DynamicResource MenuBrush}" BorderBrush="{DynamicResource MenuStrokeBrush}" BorderThickness="1"
+                Visibility="{Binding Toast, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding Toast}" FontSize="13" TextWrapping="Wrap" MaxWidth="520"/>
+        </Border>
+
+        <!-- Drag & drop overlay -->
+        <Border x:Name="DropOverlay" Grid.ColumnSpan="2" Margin="12" CornerRadius="14" Visibility="Collapsed"
+                Background="{DynamicResource OverlayBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2"
+                IsHitTestVisible="False">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" FontSize="44" Foreground="{DynamicResource AccentBrush}"/>
+                <TextBlock Text="Drop to play" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,4"/>
+                <TextBlock Text="Hold Shift to add to the queue instead" Style="{StaticResource Secondary}" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

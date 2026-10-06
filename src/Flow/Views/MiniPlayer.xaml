@@ -1,0 +1,141 @@
+<UserControl x:Class="Flow.Views.MiniPlayer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Flow.Views">
+    <!-- Classic iTunes-style player bar: transport | LCD display | options -->
+    <Border Margin="14,4,14,12" Padding="14,8" CornerRadius="14"
+            Background="{DynamicResource OverlayBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Transport -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource IconButton}" Content="&#xE892;" FontSize="17" Width="40" Height="40"
+                        ToolTip="Previous" Command="{Binding PreviousCommand}"/>
+                <Button Style="{StaticResource PlayButton}" Width="46" Height="46" FontSize="17" Margin="6,0"
+                        ToolTip="Play / Pause  (Space)" Command="{Binding PlayPauseCommand}"
+                        Content="{Binding Playback.IsPlaying, Converter={StaticResource BoolToText}, ConverterParameter='&#xE769;|&#xE768;'}"/>
+                <Button Style="{StaticResource IconButton}" Content="&#xE893;" FontSize="17" Width="40" Height="40"
+                        ToolTip="Next" Command="{Binding NextCommand}"/>
+            </StackPanel>
+
+            <!-- LCD display -->
+            <Border Grid.Column="1" MaxWidth="680" Margin="18,0" Padding="8,6,14,6" CornerRadius="10"
+                    Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- Cover: click to go to Now Playing -->
+                    <Button Style="{StaticResource LinkButton}" Width="52" Height="52" Margin="0,0,12,0" ToolTip="Open Now Playing"
+                            Command="{Binding NavigateCommand}" CommandParameter="NowPlaying">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Grid>
+                                    <Border CornerRadius="6" Background="{DynamicResource SurfaceStrongBrush}">
+                                        <TextBlock Text="&#xEC4F;" Style="{StaticResource Glyph}" FontSize="18" Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                    </Border>
+                                    <Border CornerRadius="6">
+                                        <Border.Background>
+                                            <ImageBrush ImageSource="{Binding Playback.CurrentArt}" Stretch="UniformToFill"/>
+                                        </Border.Background>
+                                    </Border>
+                                </Grid>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <!-- Title (+ equalizer) -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Style="{StaticResource LinkButton}" Content="{Binding Playback.CurrentTrack.Title}" FontSize="13"
+                                    FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" ToolTip="Open Now Playing"
+                                    Command="{Binding NavigateCommand}" CommandParameter="NowPlaying"/>
+                            <local:NowPlayingIndicator Grid.Column="1" Margin="10,0,0,0" Width="16" Height="12"/>
+                        </Grid>
+                        <!-- Artist(s) — Album -->
+                        <StackPanel Orientation="Horizontal" Margin="0,1,0,3" TextElement.FontSize="12">
+                            <ItemsControl ItemsSource="{Binding Playback.CurrentTrack.ArtistList}" VerticalAlignment="Center">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text=", " FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Visibility="{Binding RelativeSource={RelativeSource PreviousData}, Converter={StaticResource BoolToVis}}"/>
+                                            <Button Style="{StaticResource LinkButton}" Content="{Binding}" FontSize="12" ToolTip="Show this artist"
+                                                    Command="{Binding DataContext.ShowArtistCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="  —  " FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center"
+                                       Visibility="{Binding Playback.CurrentTrack.Album, Converter={StaticResource BoolToVis}}"/>
+                            <Button Style="{StaticResource LinkButton}" Content="{Binding Playback.CurrentTrack.Album}" FontSize="12" MaxWidth="260"
+                                    ToolTip="Show this album" Command="{Binding ShowAlbumCommand}" CommandParameter="{Binding Playback.CurrentTrack}"
+                                    Visibility="{Binding Playback.CurrentTrack.Album, Converter={StaticResource BoolToVis}}"/>
+                        </StackPanel>
+                        <!-- Timeline -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="40"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Value, ElementName=Timeline, Converter={StaticResource SecondsToTime}}"
+                                       Style="{StaticResource Tertiary}" FontSize="11" VerticalAlignment="Center"/>
+                            <Slider x:Name="Timeline" Grid.Column="1" Style="{StaticResource FlowSlider}" Height="16" Margin="4,0"
+                                    Minimum="0" Maximum="{Binding Playback.DurationSeconds}"
+                                    Value="{Binding Playback.PositionSeconds, Mode=OneWay}"
+                                    PreviewMouseLeftButtonDown="Timeline_PreviewMouseDown"
+                                    PreviewMouseLeftButtonUp="Timeline_PreviewMouseUp"
+                                    Thumb.DragStarted="Timeline_DragStarted"
+                                    Thumb.DragCompleted="Timeline_DragCompleted"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Playback.DurationSeconds, Converter={StaticResource SecondsToTime}}"
+                                       Style="{StaticResource Tertiary}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Options -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <ToggleButton Style="{StaticResource IconToggle}" Width="34" Height="34" FontSize="13" Content="&#xE8B1;"
+                              ToolTip="Shuffle  (Ctrl+S)" IsChecked="{Binding Playback.Shuffle}"/>
+                <ToggleButton Style="{StaticResource IconToggle}" Width="34" Height="34" FontSize="13" ToolTip="Repeat  (Ctrl+R)"
+                              Content="{Binding Playback.Repeat, Converter={StaticResource RepeatGlyph}}"
+                              IsChecked="{Binding Playback.Repeat, Mode=OneWay, Converter={StaticResource RepeatActive}}"
+                              Command="{Binding RepeatCommand}"/>
+                <ToggleButton Style="{StaticResource IconToggle}" Width="34" Height="34" FontSize="13" ToolTip="Favorite"
+                              IsChecked="{Binding Playback.CurrentTrack.IsFavorite, Mode=OneWay}"
+                              Content="{Binding Playback.CurrentTrack.IsFavorite, Converter={StaticResource BoolToText}, ConverterParameter='&#xEB52;|&#xE006;'}"
+                              Command="{Binding FavoriteCommand}"/>
+                <Button Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="13" Content="&#xE90B;"
+                        Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="Up Next" Command="{Binding OpenQueueCommand}" Margin="0,0,8,0"/>
+                <Button Style="{StaticResource IconButton}" Width="32" Height="32" FontSize="13"
+                        Foreground="{DynamicResource TextSecondaryBrush}" Command="{Binding MuteCommand}" ToolTip="Mute  (M)">
+                    <Button.Content>
+                        <MultiBinding Converter="{StaticResource VolumeGlyph}">
+                            <Binding Path="Playback.Volume"/>
+                            <Binding Path="Playback.IsMuted"/>
+                        </MultiBinding>
+                    </Button.Content>
+                </Button>
+                <Slider Style="{StaticResource FlowSlider}" Width="96" Minimum="0" Maximum="1" Margin="4,0,0,0"
+                        VerticalAlignment="Center" SmallChange="0.02" LargeChange="0.1" Value="{Binding Playback.Volume}"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,0 +1,15 @@
+# Build output (normally redirected to %LOCALAPPDATA%\FlowBuild by Directory.Build.props)
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+.vscode/
+
+# Published binaries are attached to GitHub Releases instead (Flow.exe is > 100 MB)
+*.exe
+*.zip
+
+# Personal notes
+Flow Player prompt
