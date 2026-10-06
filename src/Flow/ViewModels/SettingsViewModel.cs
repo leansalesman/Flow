@@ -113,6 +113,13 @@ public sealed class SettingsViewModel : ObservableObject
     public string Version =>
         "Flow " + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0") + "  ·  Windows 11 x64";
 
+    /// <summary>"Created by …" line in About, read from the assembly's Authors/Company metadata.</summary>
+    public string Author =>
+        "Created by " + (Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyCompanyAttribute>()?.Company ?? "Joseph Martinez");
+
+    public string Copyright =>
+        Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? "";
+
     public void AddFolder()
     {
         var dlg = new OpenFolderDialog { Title = "Add a music folder", Multiselect = true };

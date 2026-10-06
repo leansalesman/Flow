@@ -11,8 +11,13 @@
     <AssemblyName>Flow</AssemblyName>
     <RootNamespace>Flow</RootNamespace>
     <Product>Flow</Product>
+    <AssemblyTitle>Flow</AssemblyTitle>
     <Description>Flow - the minimal and beautiful music player</Description>
-    <Version>1.0.0</Version>
+    <Authors>Joseph Martinez</Authors>
+    <Company>Joseph Martinez</Company>
+    <Copyright>© 2026 Joseph Martinez</Copyright>
+    <Version>1.1.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Flow.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 

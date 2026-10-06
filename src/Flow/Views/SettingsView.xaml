@@ -283,6 +283,7 @@
                         <Image Source="/Assets/Flow.png" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="Flow — the minimal and beautiful music player" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding Author}" Style="{StaticResource Secondary}" Margin="0,2,0,0"/>
                             <TextBlock Text="{Binding Version}" Style="{StaticResource Tertiary}"/>
                         </StackPanel>
                     </StackPanel>

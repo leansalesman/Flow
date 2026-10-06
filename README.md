@@ -3,6 +3,8 @@
 A lightweight, translucent music player for Windows 11 (x64), built with C# / WPF on .NET 10 —
 a modern take on the classic mid-2000s iTunes feel, for local files **and** your Spotify library.
 
+Created by **Joseph Martinez**.
+
 **Download:** grab `Flow-win-x64.zip` from the [Releases](../../releases) page, unzip, run `Flow.exe`
 (portable and self-contained — nothing to install). Windows SmartScreen may warn because the app isn't
 code-signed: choose **More info → Run anyway**.
