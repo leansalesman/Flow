@@ -284,18 +284,10 @@ public sealed class SpotifyPlayback
         var list = devices.Where(d => d != null && d["is_restricted"]?.GetValue<bool>() != true && d["id"] != null).ToList();
         SpotifyLog.Write("Devices: " + string.Join(", ", list.Select(d =>
             $"{d!["name"]?.GetValue<string>()} ({d["type"]?.GetValue<string>()}{(d["is_active"]?.GetValue<bool>() == true ? ", active" : "")})")));
-        // Prefer this PC, even when another device (e.g. a phone) is the active one: Flow is a desktop player,
-        // and the visualizer can only react to audio that comes out of this PC. Playing with this PC's device id
-        // moves playback over from the other device.
-        bool IsComputer(System.Text.Json.Nodes.JsonNode? d) => d!["type"]?.GetValue<string>() == "Computer";
-        bool IsActive(System.Text.Json.Nodes.JsonNode? d) => d!["is_active"]?.GetValue<bool>() == true;
-        var pick = list.FirstOrDefault(d => string.Equals(d!["name"]?.GetValue<string>(), Environment.MachineName, StringComparison.OrdinalIgnoreCase))
-                   ?? list.FirstOrDefault(d => IsComputer(d) && IsActive(d))
-                   ?? list.FirstOrDefault(IsComputer)
-                   ?? list.FirstOrDefault(IsActive)
+        var pick = list.FirstOrDefault(d => d!["is_active"]?.GetValue<bool>() == true)
+                   ?? list.FirstOrDefault(d => string.Equals(d!["name"]?.GetValue<string>(), Environment.MachineName, StringComparison.OrdinalIgnoreCase))
+                   ?? list.FirstOrDefault(d => d!["type"]?.GetValue<string>() == "Computer")
                    ?? list.FirstOrDefault();
-        if (pick != null && !IsActive(pick) && list.Any(IsActive))
-            SpotifyLog.Write($"Moving playback to {pick["name"]?.GetValue<string>()} (this PC)");
         if (pick == null) return null;
         DeviceName = pick["name"]?.GetValue<string>();
         _deviceIsComputer = pick["type"]?.GetValue<string>() == "Computer";
