@@ -10,6 +10,37 @@
             <Setter Property="Padding" Value="20,18"/>
             <Setter Property="Margin" Value="0,0,0,14"/>
         </Style>
+        <!-- Appearance option: a little preview of the theme with its name underneath -->
+        <Style x:Key="ThemeTile" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="GroupName" Value="AppTheme"/>
+            <Setter Property="Margin" Value="0,0,12,12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Width="124">
+                            <Border x:Name="Ring" CornerRadius="10" BorderThickness="2" BorderBrush="Transparent" Padding="3">
+                                <Border Height="74" CornerRadius="7" ClipToBounds="True">
+                                    <ContentPresenter/>
+                                </Border>
+                            </Border>
+                            <TextBlock x:Name="Name" Text="{TemplateBinding Tag}" FontSize="12" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource StrokeBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Name" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                <Setter TargetName="Name" Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="RowLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -21,6 +52,114 @@
         <!-- Stretch + MaxWidth: fills narrow windows, and centers at a comfortable reading width in wide ones -->
         <StackPanel MaxWidth="820" HorizontalAlignment="Stretch">
             <TextBlock Text="Settings" Style="{StaticResource PageTitle}" Margin="0,0,0,18"/>
+
+            <!-- Appearance -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Appearance" Style="{StaticResource SectionTitle}" Margin="0"/>
+                    <TextBlock Text="Changes apply right away." Style="{StaticResource Tertiary}" Margin="0,2,0,14"/>
+                    <WrapPanel>
+                        <!-- Minimal: translucent over the desktop -->
+                        <RadioButton Style="{StaticResource ThemeTile}" Tag="Minimal (translucent)"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EqualsConv}, ConverterParameter=Minimal}">
+                            <Grid>
+                                <Grid.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#FF3A5BA0" Offset="0"/>
+                                        <GradientStop Color="#FF7A4E9C" Offset="0.55"/>
+                                        <GradientStop Color="#FFC96F7E" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Grid.Background>
+                                <Border Margin="8" CornerRadius="5" Background="#70141418" BorderBrush="#40FFFFFF" BorderThickness="1">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <Border Width="22" Height="22" CornerRadius="3" Background="#B0FFFFFF"/>
+                                        <Border Width="40" Height="3" CornerRadius="1.5" Background="#90FFFFFF" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </RadioButton>
+                        <!-- Dark -->
+                        <RadioButton Style="{StaticResource ThemeTile}" Tag="Dark"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EqualsConv}, ConverterParameter=Dark}">
+                            <Grid Background="#FF1C1C1E">
+                                <Border Width="18" HorizontalAlignment="Left" Background="#FF17171A"/>
+                                <StackPanel Margin="26,10,10,0">
+                                    <Border Height="5" Width="44" HorizontalAlignment="Left" CornerRadius="2.5" Background="#E0FFFFFF"/>
+                                    <Border Height="4" Width="70" HorizontalAlignment="Left" CornerRadius="2" Background="#50FFFFFF" Margin="0,8,0,0"/>
+                                    <Border Height="4" Width="60" HorizontalAlignment="Left" CornerRadius="2" Background="#50FFFFFF" Margin="0,6,0,0"/>
+                                    <Border Height="4" Width="66" HorizontalAlignment="Left" CornerRadius="2" Background="#50FFFFFF" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </RadioButton>
+                        <!-- Light -->
+                        <RadioButton Style="{StaticResource ThemeTile}" Tag="Light"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EqualsConv}, ConverterParameter=Light}">
+                            <Grid Background="#FFF3F3F5">
+                                <Border Width="18" HorizontalAlignment="Left" Background="#FFE6E6EA"/>
+                                <StackPanel Margin="26,10,10,0">
+                                    <Border Height="5" Width="44" HorizontalAlignment="Left" CornerRadius="2.5" Background="#E0000000"/>
+                                    <Border Height="4" Width="70" HorizontalAlignment="Left" CornerRadius="2" Background="#40000000" Margin="0,8,0,0"/>
+                                    <Border Height="4" Width="60" HorizontalAlignment="Left" CornerRadius="2" Background="#40000000" Margin="0,6,0,0"/>
+                                    <Border Height="4" Width="66" HorizontalAlignment="Left" CornerRadius="2" Background="#40000000" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </RadioButton>
+                        <!-- Automatic: half dark, half light -->
+                        <RadioButton Style="{StaticResource ThemeTile}" Tag="Automatic"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EqualsConv}, ConverterParameter=Auto}">
+                            <Grid>
+                                <Grid.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#FF1C1C1E" Offset="0.5"/>
+                                        <GradientStop Color="#FFF3F3F5" Offset="0.5"/>
+                                    </LinearGradientBrush>
+                                </Grid.Background>
+                                <TextBlock Text="&#xE793;" Style="{StaticResource Glyph}" FontSize="22" Foreground="#FF8A8A90"/>
+                            </Grid>
+                        </RadioButton>
+                        <!-- Brushed Metal -->
+                        <RadioButton Style="{StaticResource ThemeTile}" Tag="Brushed Metal"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EqualsConv}, ConverterParameter=Metal}">
+                            <Grid>
+                                <Grid.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#FFE4E5E7" Offset="0"/>
+                                        <GradientStop Color="#FFC9CACD" Offset="0.5"/>
+                                        <GradientStop Color="#FFB3B4B8" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Grid.Background>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Top" Margin="7,8,7,0">
+                                    <Ellipse Width="13" Height="13" Stroke="#FF6A6A70" StrokeThickness="1">
+                                        <Ellipse.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="White" Offset="0"/>
+                                                <GradientStop Color="#FFD3D5D9" Offset="0.5"/>
+                                                <GradientStop Color="#FFF2F3F5" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+                                    <Border Width="64" Height="15" CornerRadius="4" Margin="7,0,0,0" BorderBrush="#FF82876F" BorderThickness="1">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#FFF4F6E6" Offset="0"/>
+                                                <GradientStop Color="#FFDAE0C0" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                </StackPanel>
+                                <Border Margin="7,30,7,7" Background="White" BorderBrush="#FF7C7C80" BorderThickness="1">
+                                    <StackPanel>
+                                        <Border Height="8" Background="White"/>
+                                        <Border Height="8" Background="#FFEDF3FE"/>
+                                        <Border Height="8" Background="White"/>
+                                        <Border Height="8" Background="#FFEDF3FE"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </RadioButton>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
 
             <!-- Music folders -->
             <Border Style="{StaticResource Card}">

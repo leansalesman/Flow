@@ -110,7 +110,7 @@ public partial class App : Application
 
         _settings = new SettingsService();
         _settings.Load();
-        Theme = new ThemeService(Dispatcher);
+        Theme = new ThemeService(Dispatcher, ThemeService.Parse(_settings.Current.Theme));
 
         _library = new LibraryService(_settings, _settings.DataDir);
         var engine = new AudioEngine();

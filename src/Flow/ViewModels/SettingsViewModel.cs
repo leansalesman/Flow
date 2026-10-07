@@ -48,6 +48,21 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly Action<string> _toast;
     private bool _applyingPreset;
 
+    /// <summary>Appearance (Settings → Appearance): applied live and remembered.</summary>
+    public string Theme
+    {
+        get => ThemeService.Parse(_settings.Current.Theme).ToString();
+        set
+        {
+            var mode = ThemeService.Parse(value);
+            if (mode.ToString() == Theme) return;
+            _settings.Current.Theme = mode.ToString();
+            _settings.Save();
+            (System.Windows.Application.Current as App)?.Theme?.SetMode(mode);
+            OnPropertyChanged();
+        }
+    }
+
     public SettingsViewModel(SettingsService settings, LibraryService lib, PlaybackService pb, Flow.Spotify.SpotifyService spotify, Action<string> toast)
     {
         Spotify = spotify;

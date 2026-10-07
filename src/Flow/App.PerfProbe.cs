@@ -34,7 +34,7 @@ public partial class App
             Flow.MainWindow.ProbeMode = true;
             var settings = new SettingsService();
             settings.Load();
-            Theme = new ThemeService(Dispatcher);
+            Theme = new ThemeService(Dispatcher, ThemeService.Parse(Environment.GetEnvironmentVariable("FLOW_THEME") ?? settings.Current.Theme));
             var library = new LibraryService(settings, settings.DataDir);
             var engine = new AudioEngine();
             var spotify = new SpotifyService(settings, library);

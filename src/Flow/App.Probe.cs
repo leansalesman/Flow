@@ -36,7 +36,7 @@ public partial class App
             Flow.MainWindow.ProbeMode = true;
             var settings = new SettingsService();
             settings.Load();
-            Theme = new ThemeService(Dispatcher);
+            Theme = new ThemeService(Dispatcher, ThemeService.Parse(Environment.GetEnvironmentVariable("FLOW_THEME") ?? settings.Current.Theme));
             var library = new LibraryService(settings, settings.DataDir);
             var engine = new AudioEngine();
             var spotify = new SpotifyService(settings, library);
@@ -189,7 +189,7 @@ public partial class App
             Flow.MainWindow.ProbeMode = true;
             var settings = new SettingsService();
             settings.Load();
-            Theme = new ThemeService(Dispatcher);
+            Theme = new ThemeService(Dispatcher, ThemeService.Parse(Environment.GetEnvironmentVariable("FLOW_THEME") ?? settings.Current.Theme));
             var library = new LibraryService(settings, settings.DataDir);
             var engine = new AudioEngine();
             var spotify = new SpotifyService(settings, library);
@@ -205,6 +205,9 @@ public partial class App
             library.LoadFromDatabase();
             spotify.LoadCache();
             playback.Restore(); // last queue, paused (as at startup) - so the player bar has a song to show
+            vm.CurrentPage = AppPage.NowPlaying;
+            await Task.Delay(3000);
+            Snap(window, Path.Combine(outDir, "0_nowplaying.png"));
             vm.CurrentPage = AppPage.Library;
             vm.Library.IsGridView = false;
             vm.Library.SetSort(SortField.ArtistName);

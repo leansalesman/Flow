@@ -27,6 +27,8 @@ public sealed class AppSettings
     public bool MinimizeToTray { get; set; }
     public bool ResumeOnStart { get; set; } = true;
     public bool FadeChromeWhilePlaying { get; set; } = true;
+    /// <summary>Appearance: "Minimal" (translucent), "Dark", "Light", "Auto" or "Metal" (Brushed Metal).</summary>
+    public string Theme { get; set; } = "Minimal";
 
     public List<string> LastQueue { get; set; } = new();
     public int LastIndex { get; set; } = -1;

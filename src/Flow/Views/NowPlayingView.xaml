@@ -80,7 +80,7 @@
                     <Border CornerRadius="16" Background="{DynamicResource SurfaceStrongBrush}">
                         <TextBlock Text="&#xEC4F;" Style="{StaticResource Glyph}" FontSize="72" Foreground="{DynamicResource TextTertiaryBrush}"/>
                     </Border>
-                    <Border x:Name="ArtImage" CornerRadius="16">
+                    <Border x:Name="ArtImage" CornerRadius="16" BorderBrush="{DynamicResource ArtFrameStrokeBrush}" BorderThickness="1">
                         <Border.Background>
                             <ImageBrush ImageSource="{Binding Playback.CurrentArt}" Stretch="UniformToFill"/>
                         </Border.Background>
@@ -90,6 +90,9 @@
 
             <!-- Track info + transport -->
             <StackPanel x:Name="ControlsPanel" Grid.Row="1" HorizontalAlignment="Center" Width="560" Margin="24,6,24,26">
+                <!-- Song info + timeline: an LCD panel in Brushed Metal, invisible in the other themes -->
+                <Border Background="{DynamicResource NowPlayingLcdBrush}" BorderBrush="{DynamicResource NowPlayingLcdStrokeBrush}" BorderThickness="1"
+                        CornerRadius="10" Padding="{DynamicResource NowPlayingLcdPadding}" Margin="0,0,0,6"><StackPanel>
                 <TextBlock Text="{Binding Playback.CurrentTrack.Title}" FontFamily="{StaticResource DisplayFont}" FontSize="25"
                            FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis"/>
                 <!-- Artist(s) · Album, each a link into the Library -->
@@ -144,18 +147,19 @@
                     <TextBlock Grid.Column="2" Text="{Binding Playback.DurationSeconds, Converter={StaticResource SecondsToTime}}"
                                Style="{StaticResource Tertiary}" VerticalAlignment="Center"/>
                 </Grid>
+                </StackPanel></Border>
 
                 <!-- Main transport -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
                     <ToggleButton Style="{StaticResource IconToggle}" Content="&#xE8B1;" ToolTip="Shuffle  (Ctrl+S)"
                                   IsChecked="{Binding Playback.Shuffle}" Margin="0,0,14,0"/>
-                    <Button x:Name="PrevButton" Style="{StaticResource IconButton}" Content="&#xE892;" FontSize="20" Width="48" Height="48"
+                    <Button x:Name="PrevButton" Style="{StaticResource TransportButton}" Content="&#xE892;" FontSize="20" Width="48" Height="48"
                             ToolTip="Previous · hold to rewind" Click="PrevButton_Click"
                             PreviewMouseLeftButtonDown="Scrub_MouseDown" PreviewMouseLeftButtonUp="Scrub_MouseUp" MouseLeave="Scrub_MouseLeave"/>
                     <Button Style="{StaticResource PlayButton}" Margin="16,0" Command="{Binding PlayPauseCommand}"
                             ToolTip="Play / Pause  (Space)"
                             Content="{Binding Playback.IsPlaying, Converter={StaticResource BoolToText}, ConverterParameter='&#xE769;|&#xE768;'}"/>
-                    <Button x:Name="NextButton" Style="{StaticResource IconButton}" Content="&#xE893;" FontSize="20" Width="48" Height="48"
+                    <Button x:Name="NextButton" Style="{StaticResource TransportButton}" Content="&#xE893;" FontSize="20" Width="48" Height="48"
                             ToolTip="Next · hold to fast-forward" Click="NextButton_Click"
                             PreviewMouseLeftButtonDown="Scrub_MouseDown" PreviewMouseLeftButtonUp="Scrub_MouseUp" MouseLeave="Scrub_MouseLeave"/>
                     <ToggleButton Style="{StaticResource IconToggle}" Margin="14,0,0,0" ToolTip="Repeat  (Ctrl+R)"

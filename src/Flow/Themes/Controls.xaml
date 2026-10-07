@@ -103,6 +103,33 @@
         </Setter>
     </Style>
 
+    <!-- Previous / next: a round button that themes can give a glossy face (Brushed Metal). -->
+    <Style x:Key="TransportButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Ellipse Margin="3" Fill="{DynamicResource TransportBrush}" Stroke="{DynamicResource TransportStrokeBrush}" StrokeThickness="1"/>
+                        <Border x:Name="Bd" Margin="3" Background="{TemplateBinding Background}" CornerRadius="100">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfacePressedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="IconToggle" TargetType="ToggleButton">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
@@ -155,7 +182,7 @@
                 <ControlTemplate TargetType="Button">
                     <Grid>
                         <Ellipse x:Name="Halo" Fill="{DynamicResource AccentBrush}" Opacity="0" Margin="-6"/>
-                        <Ellipse Fill="{DynamicResource PlayButtonBrush}"/>
+                        <Ellipse Fill="{DynamicResource PlayButtonBrush}" Stroke="{DynamicResource PlayButtonStrokeBrush}" StrokeThickness="1"/>
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Grid>
                     <ControlTemplate.Triggers>
@@ -585,7 +612,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border x:Name="Bd" CornerRadius="3" Background="{DynamicResource SurfaceStrongBrush}"/>
+                    <Border x:Name="Bd" CornerRadius="3" Background="{DynamicResource ScrollThumbBrush}"/>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource TextTertiaryBrush}"/>
@@ -774,20 +801,25 @@
 
     <Style x:Key="RowItem" TargetType="ListBoxItem">
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="10,0" Margin="0,1" MinHeight="40">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource RowCornerRadius}"
+                            Padding="10,0" Margin="0,1" MinHeight="40">
                         <ContentPresenter VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowAltBrush}"/>
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowSelectedBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -829,6 +861,7 @@
         <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
         <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel"/>
         <Setter Property="ItemContainerStyle" Value="{StaticResource RowItem}"/>
+        <Setter Property="AlternationCount" Value="2"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBox">
@@ -846,7 +879,8 @@
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="RowBackground" Value="Transparent"/>
-        <Setter Property="AlternatingRowBackground" Value="Transparent"/>
+        <Setter Property="AlternatingRowBackground" Value="{DynamicResource RowAltBrush}"/>
+        <Setter Property="AlternationCount" Value="2"/>
         <Setter Property="GridLinesVisibility" Value="None"/>
         <Setter Property="HeadersVisibility" Value="Column"/>
         <Setter Property="RowHeight" Value="40"/>
@@ -875,7 +909,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridColumnHeader">
                     <Grid>
-                        <Border x:Name="Bd" Background="Transparent" Padding="12,10" CornerRadius="6">
+                        <Border x:Name="Bd" Background="{DynamicResource HeaderBrush}" Padding="12,10" CornerRadius="{DynamicResource RowCornerRadius}"
+                                BorderBrush="{DynamicResource HeaderStrokeBrush}" BorderThickness="0,0,1,1">
                             <StackPanel Orientation="Horizontal">
                                 <ContentPresenter VerticalAlignment="Center"/>
                                 <TextBlock x:Name="Arrow" FontFamily="{StaticResource IconFont}" FontSize="9" Margin="6,1,0,0"
@@ -911,14 +946,14 @@
         </Setter>
     </Style>
 
+    <!-- No Background setter: it would stop the DataGrid from applying its alternating (striped) rows. -->
     <Style TargetType="DataGridRow">
-        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridRow">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Margin="0,1">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource RowCornerRadius}" Margin="0,1">
                         <DataGridCellsPresenter ItemsPanel="{TemplateBinding ItemsPanel}"/>
                     </Border>
                 </ControlTemplate>
@@ -929,7 +964,7 @@
                 <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{DynamicResource SurfaceStrongBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource RowSelectedBrush}"/>
             </Trigger>
             <DataTrigger Binding="{Binding IsPlayingNow}" Value="True">
                 <Setter Property="FontWeight" Value="SemiBold"/>

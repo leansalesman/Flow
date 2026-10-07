@@ -4,7 +4,7 @@
              xmlns:local="clr-namespace:Flow.Views">
     <!-- Classic iTunes-style player bar: transport | LCD display | options -->
     <Border Margin="14,4,14,12" Padding="14,8" CornerRadius="14"
-            Background="{DynamicResource OverlayBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+            Background="{DynamicResource PlayerBarBrush}" BorderBrush="{DynamicResource PlayerBarStrokeBrush}" BorderThickness="1">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -14,18 +14,18 @@
 
             <!-- Transport -->
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Style="{StaticResource IconButton}" Content="&#xE892;" FontSize="17" Width="40" Height="40"
+                <Button Style="{StaticResource TransportButton}" Content="&#xE892;" FontSize="16" Width="42" Height="42"
                         ToolTip="Previous" Command="{Binding PreviousCommand}"/>
                 <Button Style="{StaticResource PlayButton}" Width="46" Height="46" FontSize="17" Margin="6,0"
                         ToolTip="Play / Pause  (Space)" Command="{Binding PlayPauseCommand}"
                         Content="{Binding Playback.IsPlaying, Converter={StaticResource BoolToText}, ConverterParameter='&#xE769;|&#xE768;'}"/>
-                <Button Style="{StaticResource IconButton}" Content="&#xE893;" FontSize="17" Width="40" Height="40"
+                <Button Style="{StaticResource TransportButton}" Content="&#xE893;" FontSize="16" Width="42" Height="42"
                         ToolTip="Next" Command="{Binding NextCommand}"/>
             </StackPanel>
 
             <!-- LCD display -->
             <Border Grid.Column="1" MaxWidth="680" Margin="18,0" Padding="8,6,14,6" CornerRadius="10"
-                    Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+                    Background="{DynamicResource LcdBrush}" BorderBrush="{DynamicResource LcdStrokeBrush}" BorderThickness="1">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>

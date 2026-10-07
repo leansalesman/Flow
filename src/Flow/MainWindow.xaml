@@ -51,11 +51,17 @@
         </TaskbarItemInfo>
     </Window.TaskbarItemInfo>
 
-    <Grid x:Name="RootGrid" Background="{DynamicResource ScrimBrush}">
+    <Grid x:Name="RootGrid" Background="{DynamicResource WindowBackgroundBrush}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="68"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
+
+        <!-- Theme layers (transparent unless the theme fills them): window shading, rail panel, content panel -->
+        <Border Grid.ColumnSpan="2" Background="{DynamicResource WindowShadeBrush}" IsHitTestVisible="False"/>
+        <Border Margin="{DynamicResource RailPanelMargin}" CornerRadius="{DynamicResource RailPanelCornerRadius}"
+                Background="{DynamicResource RailBackgroundBrush}" BorderBrush="{DynamicResource RailStrokeBrush}"
+                BorderThickness="1" IsHitTestVisible="False"/>
 
         <!-- Left icon rail -->
         <Grid x:Name="Rail" Grid.Column="0" Margin="0,0,0,14">
@@ -90,7 +96,9 @@
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <Grid x:Name="ContentHost">
+            <Border Margin="0,6,14,0" CornerRadius="4" IsHitTestVisible="False"
+                    Background="{DynamicResource ContentPanelBrush}" BorderBrush="{DynamicResource ContentPanelStrokeBrush}" BorderThickness="1"/>
+            <Grid x:Name="ContentHost" Margin="{DynamicResource ContentHostMargin}">
                 <views:NowPlayingView x:Name="NowPlayingPage"/>
                 <views:LibraryView x:Name="LibraryPage" Visibility="Collapsed"/>
                 <views:PlaylistsView x:Name="PlaylistsPage" Visibility="Collapsed"/>
