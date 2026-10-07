@@ -92,6 +92,58 @@ public static class TrackMenu
     }
 }
 
+/// <summary>
+/// "Play on…": a menu of the Spotify Connect devices (this PC, phones, speakers…), opened above a button.
+/// Picking one sends Spotify songs there (moving a playing one); "Automatic" goes back to Spotify's active device.
+/// </summary>
+public static class DeviceMenu
+{
+    public static async void Show(FrameworkElement anchor, MainViewModel? vm)
+    {
+        if (vm == null) return;
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+        menu.Items.Add(new MenuItem { Header = "Looking for Spotify devices…", IsEnabled = false });
+        menu.IsOpen = true;
+
+        IReadOnlyList<Flow.Spotify.SpotifyDevice> devices;
+        try { devices = await vm.Playback.GetSpotifyDevicesAsync(); }
+        catch { devices = Array.Empty<Flow.Spotify.SpotifyDevice>(); }
+        if (!menu.IsOpen) return;
+
+        menu.Items.Clear();
+        menu.Items.Add(new MenuItem { Header = "Play Spotify songs on", IsEnabled = false });
+        var chosen = vm.Playback.ChosenSpotifyDeviceId;
+        var auto = TrackMenu.Item("Automatic  (Spotify's active device)", "\uE895", () => _ = vm.Playback.PlaySpotifyOnAsync(null));
+        Check(auto, chosen == null);
+        menu.Items.Add(auto);
+        menu.Items.Add(new Separator());
+        if (devices.Count == 0)
+            menu.Items.Add(new MenuItem { Header = "No devices found — open Spotify on a device", IsEnabled = false });
+        foreach (var d in devices)
+        {
+            var item = TrackMenu.Item(d.IsActive ? $"{d.Name}  ·  active" : d.Name, Glyph(d.Type), () => _ = vm.Playback.PlaySpotifyOnAsync(d));
+            Check(item, chosen == d.Id);
+            menu.Items.Add(item);
+        }
+    }
+
+    // The menu shows a check mark in the icon column, so a checked item drops its icon.
+    private static void Check(MenuItem item, bool on)
+    {
+        if (!on) return;
+        item.IsChecked = true;
+        item.Icon = null;
+    }
+
+    private static string Glyph(string type) => type switch
+    {
+        "Computer" => "\uE7F8",
+        "Smartphone" or "Tablet" => "\uE8EA",
+        "TV" or "CastVideo" => "\uE7F4",
+        _ => "\uE7F5",
+    };
+}
+
 /// <summary>Drag-to-reorder for ListBoxes.</summary>
 public static class DragReorder
 {

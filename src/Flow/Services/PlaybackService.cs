@@ -99,6 +99,28 @@ public sealed class PlaybackService : ObservableObject, IDisposable
     public bool HasTrack => _current != null;
     public bool CurrentIsSpotify => _current?.IsSpotify == true;
 
+    // ---- "Play on…" (Spotify Connect devices) ----
+
+    public Task<IReadOnlyList<SpotifyDevice>> GetSpotifyDevicesAsync() => _sp.GetDevicesAsync();
+    public string? ChosenSpotifyDeviceId => _sp.ChosenDeviceId;
+
+    /// <summary>Plays Spotify songs on the given device (null = Spotify's active device), moving a playing song there.</summary>
+    public async Task PlaySpotifyOnAsync(SpotifyDevice? device)
+    {
+        if (device == null)
+        {
+            _sp.UseActiveDevice();
+            Notify?.Invoke("Spotify songs will play on Spotify's active device");
+        }
+        else
+        {
+            bool moving = CurrentIsSpotify && _sp.Active;
+            var err = await _sp.PlayOnDeviceAsync(device);
+            Notify?.Invoke(err ?? (moving ? $"Playing on {device.Name}" : $"Spotify songs will play on {device.Name}"));
+        }
+        OnPropertyChanged(nameof(PlayingOnText));
+    }
+
     public string PlayingOnText => CurrentIsSpotify
         ? "Playing on Spotify" + (_sp.DeviceName != null ? "  ·  " + _sp.DeviceName : "")
         : "";

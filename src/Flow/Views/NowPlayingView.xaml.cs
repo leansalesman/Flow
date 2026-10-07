@@ -16,6 +16,8 @@ namespace Flow.Views;
 public partial class NowPlayingView : UserControl
 {
     private MainViewModel? _vm;
+
+    private void Devices_Click(object sender, RoutedEventArgs e) => DeviceMenu.Show((FrameworkElement)sender, _vm);
     private readonly DispatcherTimer _holdTimer;
     private Button? _holdButton;
     private bool _scrubbing, _suppressClick;

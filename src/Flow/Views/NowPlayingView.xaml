@@ -177,8 +177,10 @@
                     <ToggleButton Style="{StaticResource IconToggle}" Width="36" Height="34" FontSize="14" Content="&#xE90B;"
                                   ToolTip="Up Next" IsChecked="{Binding IsQueueOpen}" Margin="4,0,0,0"/>
                     <Button Style="{StaticResource IconButton}" Width="36" Height="34" FontSize="14" Content="&#xE93C;"
-                            Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="Go to album" Margin="4,0,14,0"
+                            Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="Go to album" Margin="4,0,0,0"
                             Command="{Binding ShowAlbumCommand}" CommandParameter="{Binding Playback.CurrentTrack}"/>
+                    <Button Style="{StaticResource IconButton}" Width="36" Height="34" FontSize="14" Content="&#xE772;" Margin="4,0,14,0"
+                            Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="Play on another device" Click="Devices_Click"/>
                     <Button Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="14"
                             Foreground="{DynamicResource TextSecondaryBrush}" Command="{Binding MuteCommand}" ToolTip="Mute  (M)">
                         <Button.Content>

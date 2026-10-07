@@ -12,6 +12,8 @@ public partial class MiniPlayer : UserControl
 
     private MainViewModel? Vm => DataContext as MainViewModel;
 
+    private void Devices_Click(object sender, System.Windows.RoutedEventArgs e) => DeviceMenu.Show((System.Windows.FrameworkElement)sender, Vm);
+
     // Seeking works like the Now Playing timeline: position updates pause while the user drags.
     private void Timeline_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {

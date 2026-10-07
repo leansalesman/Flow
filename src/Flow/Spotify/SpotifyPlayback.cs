@@ -6,6 +6,9 @@ using Flow.Infrastructure;
 
 namespace Flow.Spotify;
 
+/// <summary>A Spotify Connect device (this PC's Spotify app, a phone, a speaker, …).</summary>
+public sealed record SpotifyDevice(string Id, string Name, string Type, bool IsActive);
+
 /// <summary>
 /// Plays Spotify tracks through the user's Spotify app / Spotify Connect device and follows its state.
 /// Flow hands Spotify a "run" of consecutive queue items; this class reports when Spotify moves to another
@@ -52,6 +55,8 @@ public sealed class SpotifyPlayback
     }
 
     public bool Active { get; private set; }
+    /// <summary>The device picked with "Play on…"; null = whichever device Spotify has active (the default).</summary>
+    public string? ChosenDeviceId { get; private set; }
     public bool IsPlaying => _playing;
     public string? DeviceName { get; private set; }
     private bool IsLocalDevice => string.Equals(DeviceName, Environment.MachineName, StringComparison.OrdinalIgnoreCase) || _deviceIsComputer;
@@ -273,6 +278,44 @@ public sealed class SpotifyPlayback
         return null;
     }
 
+    /// <summary>The Spotify Connect devices currently available to this account.</summary>
+    public async Task<IReadOnlyList<SpotifyDevice>> GetDevicesAsync()
+    {
+        var r = await _api.GetAsync("/me/player/devices");
+        if (!r.Ok || r.Json?["devices"] is not System.Text.Json.Nodes.JsonArray devices) return Array.Empty<SpotifyDevice>();
+        return devices
+            .Where(d => d != null && d["is_restricted"]?.GetValue<bool>() != true && d["id"] != null)
+            .Select(d => new SpotifyDevice(d!["id"]!.GetValue<string>(), d["name"]?.GetValue<string>() ?? "Unknown device",
+                                           d["type"]?.GetValue<string>() ?? "", d["is_active"]?.GetValue<bool>() == true))
+            .ToList();
+    }
+
+    /// <summary>
+    /// "Play on…": Spotify songs go to this device from now on. A Spotify song that is playing right now moves
+    /// there and carries on from the same spot. Returns an error message, or null.
+    /// </summary>
+    public async Task<string?> PlayOnDeviceAsync(SpotifyDevice device)
+    {
+        ChosenDeviceId = device.Id;
+        SpotifyLog.Write($"User chose device: {device.Name} ({device.Type})");
+        if (!Active) return null;
+        _lastCommand = DateTime.UtcNow;
+        var r = await _api.SendAsync(HttpMethod.Put, "/me/player", new { device_ids = new[] { device.Id }, play = _playing });
+        SpotifyLog.Write($"Transfer to {device.Name}: {(int)r.Status} {Short(r)}");
+        if (!r.Ok) return $"Spotify couldn't move playback to {device.Name}.";
+        DeviceName = device.Name;
+        _deviceIsComputer = device.Type == "Computer";
+        _lastCommand = DateTime.UtcNow;
+        return null;
+    }
+
+    /// <summary>Back to the default: play on whichever device Spotify has active.</summary>
+    public void UseActiveDevice()
+    {
+        ChosenDeviceId = null;
+        SpotifyLog.Write("User chose: Spotify's active device");
+    }
+
     private async Task<(string Id, bool Active)?> PickDeviceAsync()
     {
         var r = await _api.GetAsync("/me/player/devices");
@@ -284,7 +327,9 @@ public sealed class SpotifyPlayback
         var list = devices.Where(d => d != null && d["is_restricted"]?.GetValue<bool>() != true && d["id"] != null).ToList();
         SpotifyLog.Write("Devices: " + string.Join(", ", list.Select(d =>
             $"{d!["name"]?.GetValue<string>()} ({d["type"]?.GetValue<string>()}{(d["is_active"]?.GetValue<bool>() == true ? ", active" : "")})")));
-        var pick = list.FirstOrDefault(d => d!["is_active"]?.GetValue<bool>() == true)
+        // A device picked with "Play on…" wins while it's available; otherwise Spotify's active device.
+        var pick = (ChosenDeviceId == null ? null : list.FirstOrDefault(d => d!["id"]?.GetValue<string>() == ChosenDeviceId))
+                   ?? list.FirstOrDefault(d => d!["is_active"]?.GetValue<bool>() == true)
                    ?? list.FirstOrDefault(d => string.Equals(d!["name"]?.GetValue<string>(), Environment.MachineName, StringComparison.OrdinalIgnoreCase))
                    ?? list.FirstOrDefault(d => d!["type"]?.GetValue<string>() == "Computer")
                    ?? list.FirstOrDefault();
