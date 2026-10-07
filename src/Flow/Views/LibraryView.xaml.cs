@@ -82,7 +82,7 @@ public partial class LibraryView : UserControl
     {
         if (sender is not Button b || b.DataContext is not AlbumInfo a || b.ContextMenu == null || Main == null) return;
         TrackMenu.Populate(b.ContextMenu, Main, a.Tracks,
-            TrackMenu.Item("Open album", "î£±", () => Lib!.SelectedAlbum = a));
+            TrackMenu.Item("Open album", "", () => Lib!.SelectedAlbum = a));
     }
 
     private void AddFolder_Click(object sender, RoutedEventArgs e) => Main?.Settings.AddFolder();

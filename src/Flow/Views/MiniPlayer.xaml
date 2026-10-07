@@ -122,6 +122,9 @@
                               IsChecked="{Binding Playback.CurrentTrack.IsFavorite, Mode=OneWay}"
                               Content="{Binding Playback.CurrentTrack.IsFavorite, Converter={StaticResource BoolToText}, ConverterParameter='&#xEB52;|&#xE006;'}"
                               Command="{Binding FavoriteCommand}"/>
+                <Button Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="13" Content="&#xE93C;"
+                        Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="Go to album"
+                        Command="{Binding ShowAlbumCommand}" CommandParameter="{Binding Playback.CurrentTrack}"/>
                 <Button Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="13" Content="&#xE90B;"
                         Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="Up Next" Command="{Binding OpenQueueCommand}" Margin="0,0,8,0"/>
                 <Button Style="{StaticResource IconButton}" Width="32" Height="32" FontSize="13"
