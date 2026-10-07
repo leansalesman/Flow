@@ -19,10 +19,14 @@ public sealed class ArtworkCache
     private readonly HashSet<string> _missing = new();
     private readonly object _lock = new();
 
+    /// <summary>The app's artwork cache, so individual tracks can show their album cover (Track.Thumb).</summary>
+    public static ArtworkCache? Shared { get; private set; }
+
     public ArtworkCache(string dataDir)
     {
         _dir = Path.Combine(dataDir, "art");
         Directory.CreateDirectory(_dir);
+        Shared ??= this;
     }
 
     public static string MakeKey(string albumArtist, string album, string directory)
@@ -136,7 +140,7 @@ public sealed class ArtworkCache
     // Shelf covers are shared across library rebuilds (sort, filter, sync) through a small LRU cache instead
     // of being decoded again each time, and are decoded at the size the shelves actually draw them.
 
-    private const int ThumbCacheCapacity = 100;
+    private const int ThumbCacheCapacity = 140; // Small tiles show ~60 covers at once; keep a screen or two of headroom
     private readonly Dictionary<string, LinkedListNode<(string Key, ImageSource Image)>> _thumbIndex = new();
     private readonly LinkedList<(string Key, ImageSource Image)> _thumbLru = new();
     private readonly object _thumbLock = new();

@@ -69,6 +69,9 @@ public sealed class Track : ObservableObject
     /// <summary>Individual artist names ("A, B" or "A; B" split) for clickable artist links.</summary>
     public IReadOnlyList<string> ArtistList => SplitArtists(DisplayArtist);
 
+    /// <summary>The album cover for this song (shared cache; bind with IsAsync=True).</summary>
+    public ImageSource? Thumb => ArtworkCache.Shared?.LoadThumb(ArtKey);
+
     /// <summary>First genre (for the clickable genre cell).</summary>
     public string PrimaryGenre => Genre.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? "";
 

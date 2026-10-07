@@ -215,6 +215,8 @@
                     </RadioButton>
                 </StackPanel>
             </Border>
+            <local:ArtSizePicker DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" GroupName="LibraryArtSize"
+                                 Value="{Binding ArtSize}"/>
             <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="13" Margin="4,0,0,0"
                     Command="{Binding ToggleSortDirectionCommand}"
                     ToolTip="{Binding SortDescending, Converter={StaticResource BoolToText}, ConverterParameter=Descending|Ascending}"
@@ -296,7 +298,7 @@
         </ListBox>
 
         <!-- Track table -->
-        <DataGrid x:Name="Table" Grid.Row="3" ItemsSource="{Binding Tracks}" Margin="0,0,0,8"
+        <DataGrid x:Name="Table" Grid.Row="3" ItemsSource="{Binding Tracks}" Margin="0,0,0,8" RowHeight="{Binding TableRowHeight}"
                   Visibility="{Binding IsGridView, Converter={StaticResource InverseBoolToVis}}"
                   Sorting="Table_Sorting" MouseDoubleClick="Table_DoubleClick" ContextMenuOpening="Table_ContextMenuOpening"
                   PreviewKeyDown="Table_PreviewKeyDown">
@@ -322,6 +324,34 @@
                                 </TextBlock>
                                 <local:NowPlayingIndicator Visibility="{Binding IsPlayingNow, Converter={StaticResource BoolToVis}}"/>
                             </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <!-- Album cover (size follows the artwork size picker); click to spotlight the album -->
+                <DataGridTemplateColumn Width="SizeToCells" CanUserSort="False" CanUserResize="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button ToolTip="Show this album" Cursor="Hand" Focusable="False"
+                                    Command="{Binding DataContext.OpenAlbumOfTrackCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                    CommandParameter="{Binding}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <ContentPresenter/>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <!-- Cover lives in the button's content (not its template) so the image binding resolves cleanly -->
+                                <Grid Width="{Binding DataContext.TableThumb, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                      Height="{Binding DataContext.TableThumb, RelativeSource={RelativeSource AncestorType=DataGrid}}">
+                                    <Border CornerRadius="4" Background="{DynamicResource SurfaceStrongBrush}">
+                                        <TextBlock Text="&#xEC4F;" Style="{StaticResource Glyph}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                    </Border>
+                                    <Border CornerRadius="4">
+                                        <Border.Background>
+                                            <ImageBrush ImageSource="{Binding Thumb, IsAsync=True}" Stretch="UniformToFill"/>
+                                        </Border.Background>
+                                    </Border>
+                                </Grid>
+                            </Button>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

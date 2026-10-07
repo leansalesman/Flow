@@ -63,6 +63,8 @@
                         <TextBlock Text="Shuffle"/>
                     </StackPanel>
                 </Button>
+                <local:ArtSizePicker DockPanel.Dock="Right" Margin="10,0,0,0" VerticalAlignment="Center" GroupName="PlaylistArtSize"
+                                     Value="{Binding ArtSize}"/>
                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="14" Content="&#xE74D;"
                         ToolTip="Delete playlist" Click="Delete_Click"
                         Visibility="{Binding IsUserPlaylist, Converter={StaticResource BoolToVis}}"/>
@@ -81,17 +83,28 @@
                 </ListBox.ContextMenu>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Grid Height="44">
+                        <Grid Height="{Binding DataContext.RowHeight, RelativeSource={RelativeSource AncestorType=ListBox}}">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="44"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="2*"/>
                                 <ColumnDefinition Width="1.4*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="NoteBox" Width="32" Height="32" CornerRadius="5" HorizontalAlignment="Left" Background="{DynamicResource SurfaceStrongBrush}">
-                                <TextBlock Text="&#xEC4F;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"/>
-                            </Border>
-                            <local:NowPlayingIndicator x:Name="PlayingGlyph" HorizontalAlignment="Left" Margin="7,0,0,0" Visibility="Collapsed"/>
+                            <!-- Album cover (size follows the artwork size picker) -->
+                            <Grid x:Name="NoteBox" Margin="0,0,14,0" VerticalAlignment="Center"
+                                  Width="{Binding DataContext.RowThumb, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                  Height="{Binding DataContext.RowThumb, RelativeSource={RelativeSource AncestorType=ListBox}}">
+                                <Border CornerRadius="5" Background="{DynamicResource SurfaceStrongBrush}">
+                                    <TextBlock Text="&#xEC4F;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                </Border>
+                                <Border CornerRadius="5">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="{Binding Thumb, IsAsync=True}" Stretch="UniformToFill"/>
+                                    </Border.Background>
+                                </Border>
+                            </Grid>
+                            <local:NowPlayingIndicator x:Name="PlayingGlyph" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Margin="0,0,14,0" Visibility="Collapsed"/>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
                                 <TextBlock x:Name="T" Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Text="{Binding DisplayArtist}" Style="{StaticResource Tertiary}"/>
@@ -102,7 +115,7 @@
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding IsPlayingNow}" Value="True">
                                 <Setter TargetName="T" Property="FontWeight" Value="SemiBold"/>
-                                <Setter TargetName="NoteBox" Property="Opacity" Value="0.35"/>
+                                <Setter TargetName="NoteBox" Property="Opacity" Value="0.4"/>
                                 <Setter TargetName="PlayingGlyph" Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                         </DataTemplate.Triggers>

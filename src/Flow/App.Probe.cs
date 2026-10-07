@@ -228,6 +228,32 @@ public partial class App
             vm.CurrentPage = AppPage.Settings;
             await Task.Delay(1500);
             Snap(window, Path.Combine(outDir, "4_settings.png"));
+
+            // Artwork sizes: shelves, track table, playlist rows.
+            vm.Library.SelectedArtist = null;
+            vm.CurrentPage = AppPage.Library;
+            vm.Library.IsGridView = true;
+            foreach (var size in new[] { "Small", "Large" })
+            {
+                vm.Library.ArtSize = size;
+                await Task.Delay(2500);
+                Snap(window, Path.Combine(outDir, $"5_shelves_{size}.png"));
+            }
+            vm.Library.IsGridView = false;
+            await Task.Delay(2500);
+            Snap(window, Path.Combine(outDir, "6_table_Large.png"));
+
+            vm.CurrentPage = AppPage.Playlists;
+            vm.Playlists.LoadEntries(); // as App startup does after the Spotify cache loads
+            var pl = vm.Playlists.Entries.FirstOrDefault(e => e.Name.Contains("Aphex", StringComparison.OrdinalIgnoreCase))
+                     ?? vm.Playlists.Entries.FirstOrDefault(e => !e.IsSmart) ?? vm.Playlists.Entries.FirstOrDefault();
+            vm.Playlists.Selected = pl;
+            foreach (var size in new[] { "Small", "Large" })
+            {
+                vm.Playlists.ArtSize = size;
+                await Task.Delay(2500);
+                Snap(window, Path.Combine(outDir, $"7_playlist_{size}.png"));
+            }
             File.WriteAllText(Path.Combine(outDir, "state.txt"),
                 $"artist={name}\nafter Back: artistOverlay={vm.Library.ShowArtistOverlay} albumOpen={vm.Library.IsAlbumOpen}\n" +
                 $"albums={vm.Library.SelectedArtist?.Albums.Count} appearsOn={vm.Library.SelectedArtist?.AppearsOn.Count} songs={vm.Library.SelectedArtist?.Tracks.Count}");

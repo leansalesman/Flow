@@ -1,0 +1,31 @@
+<UserControl x:Class="Flow.Views.ArtSizePicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Self" ToolTip="Artwork size">
+    <!-- Small / Medium / Large artwork, shown as three squares of increasing size -->
+    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+        <StackPanel Orientation="Horizontal">
+            <RadioButton Style="{StaticResource SegmentRadio}" Padding="9,6" GroupName="{Binding GroupName, ElementName=Self}" ToolTip="Small artwork"
+                         IsChecked="{Binding Value, ElementName=Self, Converter={StaticResource EqualsConv}, ConverterParameter=Small}">
+                <Border Width="16" Height="16">
+                    <Rectangle Width="8" Height="8" RadiusX="1.5" RadiusY="1.5" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                </Border>
+            </RadioButton>
+            <RadioButton Style="{StaticResource SegmentRadio}" Padding="9,6" GroupName="{Binding GroupName, ElementName=Self}" ToolTip="Medium artwork"
+                         IsChecked="{Binding Value, ElementName=Self, Converter={StaticResource EqualsConv}, ConverterParameter=Medium}">
+                <Border Width="16" Height="16">
+                    <Rectangle Width="11" Height="11" RadiusX="2" RadiusY="2" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                </Border>
+            </RadioButton>
+            <RadioButton Style="{StaticResource SegmentRadio}" Padding="9,6" GroupName="{Binding GroupName, ElementName=Self}" ToolTip="Large artwork"
+                         IsChecked="{Binding Value, ElementName=Self, Converter={StaticResource EqualsConv}, ConverterParameter=Large}">
+                <Border Width="16" Height="16">
+                    <Rectangle Width="15" Height="15" RadiusX="2.5" RadiusY="2.5" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                </Border>
+            </RadioButton>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -39,6 +39,7 @@ public sealed class LibraryViewModel : ObservableObject
         _sortField = Enum.TryParse<SortField>(settings.Current.SortField, out var sf) ? sf : SortField.ArtistName;
         _sortDescending = settings.Current.SortDescending;
         _source = settings.Current.LibrarySource is "Local" or "Spotify" ? settings.Current.LibrarySource : "All";
+        _artSize = settings.Current.LibraryArtSize is "Small" or "Large" ? settings.Current.LibraryArtSize : "Medium";
 
         _rebuildTimer = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMilliseconds(150) };
         _rebuildTimer.Tick += (_, _) => { _rebuildTimer.Stop(); Rebuild(); };
@@ -160,6 +161,29 @@ public sealed class LibraryViewModel : ObservableObject
         get => _columns;
         set { if (Set(ref _columns, Math.Max(1, value))) BuildRows(); }
     }
+
+    // ---- Artwork size (Small / Medium / Large) ----
+
+    private string _artSize = "Medium";
+    /// <summary>"Small", "Medium" or "Large": shelf tile size and the cover column in the track table.</summary>
+    public string ArtSize
+    {
+        get => _artSize;
+        set
+        {
+            value = value is "Small" or "Large" ? value : "Medium";
+            if (!Set(ref _artSize, value)) return;
+            _settings.Current.LibraryArtSize = value;
+            OnPropertyChanged(nameof(MinTileWidth));
+            OnPropertyChanged(nameof(TableThumb));
+            OnPropertyChanged(nameof(TableRowHeight));
+        }
+    }
+
+    /// <summary>Smallest shelf tile width; the shelves fit as many as possible and stretch them to fill.</summary>
+    public double MinTileWidth => _artSize switch { "Small" => 120, "Large" => 236, _ => 168 };
+    public double TableThumb => _artSize switch { "Small" => 26, "Large" => 52, _ => 36 };
+    public double TableRowHeight => TableThumb + 14;
 
     private double _tileWidth = 180;
     public double TileWidth { get => _tileWidth; set => Set(ref _tileWidth, value); }

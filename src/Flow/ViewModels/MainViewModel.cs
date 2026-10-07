@@ -22,7 +22,7 @@ public sealed class MainViewModel : ObservableObject
         Spotify = spotify;
         _settingsRef = settings;
         Library = new LibraryViewModel(library, playback, settings, ui);
-        Playlists = new PlaylistsViewModel(library, playback, ui, ShowToast, () => spotify.Cache.Playlists);
+        Playlists = new PlaylistsViewModel(library, playback, ui, ShowToast, () => spotify.Cache.Playlists, settings);
         Settings = new SettingsViewModel(settings, library, playback, spotify, ShowToast);
         playback.Notify += ShowToast;
         spotify.LibraryImported += () => ui.BeginInvoke(() =>

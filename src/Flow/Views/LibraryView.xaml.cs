@@ -13,7 +13,6 @@ namespace Flow.Views;
 
 public partial class LibraryView : UserControl
 {
-    private const double MinTile = 168;
     private const double TileGap = 22;
 
     public LibraryView()
@@ -41,15 +40,20 @@ public partial class LibraryView : UserControl
 
     private void OnLibChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(LibraryViewModel.ArtSize)) LayoutShelves();
         if (e.PropertyName is nameof(LibraryViewModel.SortField) or nameof(LibraryViewModel.SortDescending) or nameof(LibraryViewModel.Tracks))
             Dispatcher.BeginInvoke(SyncColumnSortGlyphs, System.Windows.Threading.DispatcherPriority.Background);
     }
 
     // ---- Shelves sizing: fill the width with evenly sized tiles ----
 
-    private void Shelves_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void Shelves_SizeChanged(object sender, SizeChangedEventArgs e) => LayoutShelves();
+
+    /// <summary>Fits as many tiles of the chosen artwork size as the width allows, stretched to fill the row.</summary>
+    private void LayoutShelves()
     {
         if (Lib == null) return;
+        double MinTile = Lib.MinTileWidth;
         double width = Shelves.ActualWidth - 18; // scrollbar allowance
         if (width <= 0) return;
         int cols = Math.Max(1, (int)((width + TileGap) / (MinTile + TileGap)));

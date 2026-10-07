@@ -30,13 +30,18 @@ public sealed class PlaylistsViewModel : ObservableObject
     private readonly Action<string> _toast;
     private readonly Func<IReadOnlyList<Flow.Spotify.SpotifyPlaylist>> _spotifyPlaylists;
 
-    public PlaylistsViewModel(LibraryService lib, PlaybackService pb, Dispatcher ui, Action<string> toast, Func<IReadOnlyList<Flow.Spotify.SpotifyPlaylist>> spotifyPlaylists)
+    private readonly SettingsService _settings;
+
+    public PlaylistsViewModel(LibraryService lib, PlaybackService pb, Dispatcher ui, Action<string> toast,
+                              Func<IReadOnlyList<Flow.Spotify.SpotifyPlaylist>> spotifyPlaylists, SettingsService settings)
     {
         _lib = lib;
         _pb = pb;
         _ui = ui;
         _toast = toast;
         _spotifyPlaylists = spotifyPlaylists;
+        _settings = settings;
+        _artSize = settings.Current.PlaylistArtSize is "Small" or "Large" ? settings.Current.PlaylistArtSize : "Medium";
 
         PlayCommand = new RelayCommand(() => { if (Tracks.Count > 0) _pb.PlayTracks(Tracks.ToList(), 0); });
         ShuffleCommand = new RelayCommand(() => { if (Tracks.Count > 0) _pb.PlayTracks(Tracks.ToList(), 0, shuffle: true); });
@@ -66,6 +71,25 @@ public sealed class PlaylistsViewModel : ObservableObject
     }
 
     public bool IsUserPlaylist => _selected is { IsSmart: false };
+
+    // ---- Artwork size (Small / Medium / Large) ----
+
+    private string _artSize = "Medium";
+    public string ArtSize
+    {
+        get => _artSize;
+        set
+        {
+            value = value is "Small" or "Large" ? value : "Medium";
+            if (!Set(ref _artSize, value)) return;
+            _settings.Current.PlaylistArtSize = value;
+            OnPropertyChanged(nameof(RowThumb));
+            OnPropertyChanged(nameof(RowHeight));
+        }
+    }
+
+    public double RowThumb => _artSize switch { "Small" => 30, "Large" => 72, _ => 44 };
+    public double RowHeight => RowThumb + 12;
 
     private string _info = "";
     public string InfoText { get => _info; private set => Set(ref _info, value); }

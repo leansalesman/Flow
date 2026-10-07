@@ -43,6 +43,9 @@ public sealed class AppSettings
     public bool SortDescending { get; set; }
     public string LibrarySource { get; set; } = "All";
     public string VisualizerStyle { get; set; } = "MirroredBlocks";
+    /// <summary>Cover artwork size: "Small", "Medium" or "Large".</summary>
+    public string LibraryArtSize { get; set; } = "Medium";
+    public string PlaylistArtSize { get; set; } = "Medium";
 
     // Spotify
     public string SpotifyClientId { get; set; } = "";
