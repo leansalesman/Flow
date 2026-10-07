@@ -4,12 +4,15 @@
              xmlns:local="clr-namespace:Flow.Views">
     <Grid x:Name="Root" DataContext="{Binding Playlists}" Margin="28,0,16,16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- Playlist navigation -->
-        <DockPanel Margin="0,0,24,0">
+        <DockPanel Margin="0,0,24,0" Width="226">
+            <DockPanel.LayoutTransform>
+                <ScaleTransform ScaleX="{Binding TextScale}" ScaleY="{Binding TextScale}"/>
+            </DockPanel.LayoutTransform>
             <TextBlock DockPanel.Dock="Top" Text="Playlists" Style="{StaticResource PageTitle}" Margin="0,0,0,14"/>
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
                 <Button Style="{StaticResource PillButton}" Click="NewPlaylist_Click" Margin="0,0,8,0">
@@ -46,6 +49,9 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <DockPanel Margin="0,4,12,16" LastChildFill="False">
+                <DockPanel.LayoutTransform>
+                    <ScaleTransform ScaleX="{Binding TextScale}" ScaleY="{Binding TextScale}"/>
+                </DockPanel.LayoutTransform>
                 <StackPanel DockPanel.Dock="Top">
                     <TextBlock Text="{Binding Selected.Name}" FontFamily="{StaticResource DisplayFont}" FontSize="24" FontWeight="SemiBold"
                                TextTrimming="CharacterEllipsis"/>
@@ -63,6 +69,8 @@
                         <TextBlock Text="Shuffle"/>
                     </StackPanel>
                 </Button>
+                <local:TextSizePicker DockPanel.Dock="Right" Margin="10,0,0,0" VerticalAlignment="Center" GroupName="PlaylistTextSize"
+                                      Value="{Binding TextSize}"/>
                 <local:ArtSizePicker DockPanel.Dock="Right" Margin="10,0,0,0" VerticalAlignment="Center" GroupName="PlaylistArtSize"
                                      Value="{Binding ArtSize}"/>
                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="34" Height="34" FontSize="14" Content="&#xE74D;"
@@ -106,11 +114,26 @@
                             <local:NowPlayingIndicator x:Name="PlayingGlyph" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                        Margin="0,0,14,0" Visibility="Collapsed"/>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                                <StackPanel.LayoutTransform>
+                                    <ScaleTransform ScaleX="{Binding DataContext.TextScale, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    ScaleY="{Binding DataContext.TextScale, RelativeSource={RelativeSource AncestorType=ListBox}}"/>
+                                </StackPanel.LayoutTransform>
                                 <TextBlock x:Name="T" Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Text="{Binding DisplayArtist}" Style="{StaticResource Tertiary}"/>
                             </StackPanel>
-                            <TextBlock Grid.Column="2" Text="{Binding DisplayAlbum}" Style="{StaticResource Secondary}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                            <TextBlock Grid.Column="3" Text="{Binding DurationText}" Style="{StaticResource Tertiary}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding DisplayAlbum}" Style="{StaticResource Secondary}" VerticalAlignment="Center" Margin="0,0,16,0"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.LayoutTransform>
+                                    <ScaleTransform ScaleX="{Binding DataContext.TextScale, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    ScaleY="{Binding DataContext.TextScale, RelativeSource={RelativeSource AncestorType=ListBox}}"/>
+                                </TextBlock.LayoutTransform>
+                            </TextBlock>
+                            <TextBlock Grid.Column="3" Text="{Binding DurationText}" Style="{StaticResource Tertiary}" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <TextBlock.LayoutTransform>
+                                    <ScaleTransform ScaleX="{Binding DataContext.TextScale, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    ScaleY="{Binding DataContext.TextScale, RelativeSource={RelativeSource AncestorType=ListBox}}"/>
+                                </TextBlock.LayoutTransform>
+                            </TextBlock>
                         </Grid>
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding IsPlayingNow}" Value="True">

@@ -42,6 +42,7 @@ public sealed class PlaylistsViewModel : ObservableObject
         _spotifyPlaylists = spotifyPlaylists;
         _settings = settings;
         _artSize = settings.Current.PlaylistArtSize is "Small" or "Large" ? settings.Current.PlaylistArtSize : "Medium";
+        _textSize = settings.Current.PlaylistTextSize is "Small" or "Large" ? settings.Current.PlaylistTextSize : "Medium";
 
         PlayCommand = new RelayCommand(() => { if (Tracks.Count > 0) _pb.PlayTracks(Tracks.ToList(), 0); });
         ShuffleCommand = new RelayCommand(() => { if (Tracks.Count > 0) _pb.PlayTracks(Tracks.ToList(), 0, shuffle: true); });
@@ -89,7 +90,26 @@ public sealed class PlaylistsViewModel : ObservableObject
     }
 
     public double RowThumb => _artSize switch { "Small" => 30, "Large" => 72, _ => 44 };
-    public double RowHeight => RowThumb + 12;
+    // Rows are tall enough for either the cover or the two lines of (scaled) text, whichever is bigger.
+    public double RowHeight => Math.Max(RowThumb, 34 * TextScale) + 12;
+
+    // ---- Text size (Small = original, Medium = 25% larger, Large = 50% larger) ----
+
+    private string _textSize = "Medium";
+    public string TextSize
+    {
+        get => _textSize;
+        set
+        {
+            value = value is "Small" or "Large" ? value : "Medium";
+            if (!Set(ref _textSize, value)) return;
+            _settings.Current.PlaylistTextSize = value;
+            OnPropertyChanged(nameof(TextScale));
+            OnPropertyChanged(nameof(RowHeight));
+        }
+    }
+
+    public double TextScale => _textSize switch { "Small" => 1.0, "Large" => 1.5, _ => 1.25 };
 
     private string _info = "";
     public string InfoText { get => _info; private set => Set(ref _info, value); }
