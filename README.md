@@ -75,6 +75,19 @@ dotnet publish src/Flow -c Release -r win-x64 --self-contained -p:PublishSingleF
 Intermediate build output goes to `%LOCALAPPDATA%\FlowBuild` (see `Directory.Build.props`) so cloud-synced
 folders don't lock it.
 
+### Optional: librespot (built-in Spotify playback, experimental)
+Flow's optional built-in Spotify engine runs [librespot](https://github.com/librespot-org/librespot) (MIT) as a
+background process. It is not in git; build it once before publishing:
+
+1. Install [Rust](https://rustup.rs) (MSVC toolchain) and the Visual Studio 2022 Build Tools with the
+   "Desktop development with C++" workload.
+2. Run `powershell -ExecutionPolicy Bypass -File tools\build-librespot.ps1`. This builds librespot v0.8.0 with
+   only the pipe audio backend and rustls, and copies it to `tools\librespot\librespot.exe`.
+3. Publish as above: `librespot.exe` is copied next to `Flow.exe` in `publish\`.
+
+Without `librespot.exe`, Flow builds and runs as usual and the built-in engine is simply unavailable.
+See `THIRD-PARTY-NOTICES.md` for librespot's license.
+
 ### Developer options
 | Command | What it does |
 |---|---|
