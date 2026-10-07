@@ -562,7 +562,7 @@
                         </StackPanel>
                     </Button>
                     <Grid Width="260" Height="260">
-                        <Border Margin="8" CornerRadius="12" Background="Black">
+                        <Border Margin="8" CornerRadius="12" Background="Black" CacheMode="BitmapCache">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="34" ShadowDepth="10" Direction="270" Opacity="0.45"/>
                             </Border.Effect>

@@ -70,7 +70,8 @@
                                      PeakColor="{DynamicResource AccentLightColor}"/>
                 <Grid x:Name="ArtHost" Width="300" Height="300" HorizontalAlignment="Center" VerticalAlignment="Center"
                       MouseWheel="Art_MouseWheel" Background="Transparent" ToolTip="Scroll to change volume">
-                    <Border Margin="10" CornerRadius="16" Background="Black"
+                    <!-- BitmapCache: the soft shadow is blurred once, not on every frame around it. -->
+                    <Border Margin="10" CornerRadius="16" Background="Black" CacheMode="BitmapCache"
                             Visibility="{Binding Playback.CurrentArt, Converter={StaticResource BoolToVis}}">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="48" ShadowDepth="14" Direction="270" Opacity="0.5"/>

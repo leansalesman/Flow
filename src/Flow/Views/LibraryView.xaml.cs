@@ -181,12 +181,15 @@ public partial class LibraryView : UserControl
             };
             LibraryContent.Effect = blur;
         }
+        // While the panel is open the shelves behind it are static: render them once into a cached bitmap, so
+        // the blur (and scrolling the panel over it) doesn't redraw hundreds of tiles every frame.
+        if (soften) LibraryContent.CacheMode = new System.Windows.Media.BitmapCache { SnapsToDevicePixels = true };
 
         var radius = new DoubleAnimation(soften ? 22 : 0, duration) { EasingFunction = ease };
         if (!soften)
             radius.Completed += (_, _) =>
             {
-                if (!AlbumOverlay.IsVisible) LibraryContent.Effect = null;
+                if (!AlbumOverlay.IsVisible && !ArtistOverlay.IsVisible) { LibraryContent.Effect = null; LibraryContent.CacheMode = null; }
             };
         blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty, radius);
         LibraryContent.BeginAnimation(OpacityProperty, new DoubleAnimation(soften ? 0.35 : 1, duration) { EasingFunction = ease });

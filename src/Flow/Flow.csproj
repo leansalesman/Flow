@@ -16,7 +16,7 @@
     <Authors>Joseph Martinez</Authors>
     <Company>Joseph Martinez</Company>
     <Copyright>© 2026 Joseph Martinez</Copyright>
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Flow.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>

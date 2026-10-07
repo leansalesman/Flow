@@ -310,11 +310,37 @@ public partial class MainWindow : Window
 
     private AppPage _shownPage = AppPage.NowPlaying;
 
+    /// <summary>
+    /// Builds the Library and Playlists screens in the background once startup has settled, so the first
+    /// visit doesn't stall while hundreds of album tiles are created. Hidden pages get laid out but not drawn.
+    /// </summary>
+    public void WarmUpPages()
+    {
+        foreach (var page in new FrameworkElement[] { LibraryPage, PlaylistsPage })
+        {
+            if (page.Visibility != Visibility.Collapsed) continue;
+            page.Visibility = Visibility.Hidden;
+            page.UpdateLayout();
+            if (page.Visibility == Visibility.Hidden) page.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private DispatcherTimer? _trimTimer;
+
     private void ShowPage(AppPage page)
     {
-        // Leaving the Library: release covers that are no longer on screen.
+        // Leaving the Library: release covers that are no longer on screen — a few seconds later, so the
+        // collection doesn't land in the middle of the transition (and is skipped if we come straight back).
         if (_shownPage == AppPage.Library && page != AppPage.Library)
-            Flow.Infrastructure.MemoryTrim.Request(Dispatcher);
+        {
+            _trimTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(4), DispatcherPriority.ApplicationIdle, (_, _) =>
+            {
+                _trimTimer!.Stop();
+                if (_shownPage != AppPage.Library) Flow.Infrastructure.MemoryTrim.Request(Dispatcher);
+            }, Dispatcher);
+            _trimTimer.Stop();
+            _trimTimer.Start();
+        }
         _shownPage = page;
         var target = PageElement(page);
         foreach (FrameworkElement child in ContentHost.Children)
@@ -326,9 +352,16 @@ public partial class MainWindow : Window
         target.Opacity = 0;
         var tt = new TranslateTransform(0, 10);
         target.RenderTransform = tt;
+        // While it fades in, a page is drawn once into a cached bitmap that is then just blended, instead of being
+        // re-rendered on every animation frame. Not for the Library: covers stream in (and the album panel may be
+        // sliding in) during the fade, and each change would re-render the whole cached page.
+        if (page != AppPage.Library) target.CacheMode = new BitmapCache { SnapsToDevicePixels = true };
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        target.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
-        tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease };
+        var slide = new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease };
+        slide.Completed += (_, _) => target.CacheMode = null;
+        target.BeginAnimation(OpacityProperty, fade);
+        tt.BeginAnimation(TranslateTransform.YProperty, slide);
         if (page == AppPage.Playlists) _vm.Playlists.LoadTracks();
         UpdateChromeFade(idle: false);
         OnUserActivity();

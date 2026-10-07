@@ -49,6 +49,12 @@ public partial class App : Application
             RunLibraryRender(e.Args[1], e.Args.Length > 2 ? e.Args[2] : null);
             return;
         }
+        if (e.Args.Length == 2 && e.Args[0] == "--perf-switch")
+        {
+            base.OnStartup(e);
+            RunSwitchProbe(e.Args[1]);
+            return;
+        }
         if (e.Args.Length == 2 && e.Args[0] == "--memory-ui")
         {
             base.OnStartup(e);
@@ -140,6 +146,11 @@ public partial class App : Application
         var settle = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         settle.Tick += (_, _) => { settle.Stop(); Flow.Infrastructure.MemoryTrim.Request(Dispatcher, force: true); };
         settle.Start();
+
+        // Pre-build the Library and Playlists screens once the window is up, so the first visit is instant.
+        var warm = new DispatcherTimer(DispatcherPriority.ApplicationIdle) { Interval = TimeSpan.FromSeconds(2) };
+        warm.Tick += (_, _) => { warm.Stop(); try { window.WarmUpPages(); } catch (Exception ex) { Log(ex); } };
+        warm.Start();
 
         _externalTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         _externalTimer.Tick += (_, _) => FlushExternal();
