@@ -16,7 +16,7 @@
     <Authors>Joseph Martinez</Authors>
     <Company>Joseph Martinez</Company>
     <Copyright>© 2026 Joseph Martinez</Copyright>
-    <Version>1.8.0</Version>
+    <Version>1.8.1</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Flow.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -57,6 +57,13 @@
   <ItemGroup>
     <Resource Include="Assets\Flow.ico" />
     <Resource Include="Assets\Flow.png" />
+  </ItemGroup>
+
+  <!-- Optional built-in Spotify playback: librespot.exe (built by tools\build-librespot.ps1, not in git) is
+       copied next to Flow.exe, outside the single-file bundle. Builds without it are unaffected. -->
+  <ItemGroup Condition="Exists('..\..\tools\librespot\librespot.exe')">
+    <None Include="..\..\tools\librespot\librespot.exe" Link="librespot.exe"
+          CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFileBundle="true" />
   </ItemGroup>
 
 </Project>
