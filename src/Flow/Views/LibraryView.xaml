@@ -424,8 +424,11 @@
                 Background="{DynamicResource OverlayBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1"
                 Visibility="{Binding ShowArtistOverlay, Converter={StaticResource BoolToVis}}"
                 IsVisibleChanged="Overlay_IsVisibleChanged">
+            <Grid>
+                <local:TextSizePicker HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,20,0" Panel.ZIndex="1" GroupName="ArtistTextSize" Value="{Binding TextSize}"/>
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="28,20,20,16">
                 <StackPanel>
+                    <StackPanel.LayoutTransform><ScaleTransform ScaleX="{Binding TextScale}" ScaleY="{Binding TextScale}"/></StackPanel.LayoutTransform>
                     <Button Style="{StaticResource PillButton}" HorizontalAlignment="Left" Command="{Binding CloseArtistCommand}" Margin="0,0,0,18">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE72B;" Style="{StaticResource Glyph}" FontSize="12" Margin="0,0,8,0"/>
@@ -534,6 +537,7 @@
                     </ListBox>
                 </StackPanel>
             </ScrollViewer>
+            </Grid>
         </Border>
 
         <!-- Album detail -->
@@ -541,7 +545,11 @@
                 Background="{DynamicResource OverlayBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1"
                 Visibility="{Binding IsAlbumOpen, Converter={StaticResource BoolToVis}}"
                 IsVisibleChanged="Overlay_IsVisibleChanged">
+            <Grid>
+                <local:TextSizePicker HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,20,0" Panel.ZIndex="1" GroupName="AlbumTextSize" Value="{Binding TextSize}"/>
+            <!-- Text size: the whole spotlight scales (title, details, buttons, cover, track list) -->
             <Grid Margin="28,20,16,16">
+                <Grid.LayoutTransform><ScaleTransform ScaleX="{Binding TextScale}" ScaleY="{Binding TextScale}"/></Grid.LayoutTransform>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -625,6 +633,7 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+            </Grid>
             </Grid>
         </Border>
     </Grid>

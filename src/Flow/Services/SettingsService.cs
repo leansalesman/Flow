@@ -46,6 +46,8 @@ public sealed class AppSettings
     /// <summary>Cover artwork size: "Small", "Medium" or "Large".</summary>
     public string LibraryArtSize { get; set; } = "Medium";
     public string PlaylistArtSize { get; set; } = "Medium";
+    /// <summary>Album spotlight / artist page text size: "Small" (original), "Medium" (default) or "Large".</summary>
+    public string SpotlightTextSize { get; set; } = "Medium";
 
     // Spotify
     public string SpotifyClientId { get; set; } = "";

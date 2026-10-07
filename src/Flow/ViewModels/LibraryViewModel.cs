@@ -40,6 +40,7 @@ public sealed class LibraryViewModel : ObservableObject
         _sortDescending = settings.Current.SortDescending;
         _source = settings.Current.LibrarySource is "Local" or "Spotify" ? settings.Current.LibrarySource : "All";
         _artSize = settings.Current.LibraryArtSize is "Small" or "Large" ? settings.Current.LibraryArtSize : "Medium";
+        _textSize = settings.Current.SpotlightTextSize is "Small" or "Large" ? settings.Current.SpotlightTextSize : "Medium";
 
         _rebuildTimer = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMilliseconds(150) };
         _rebuildTimer.Tick += (_, _) => { _rebuildTimer.Stop(); Rebuild(); };
@@ -179,6 +180,24 @@ public sealed class LibraryViewModel : ObservableObject
             OnPropertyChanged(nameof(TableRowHeight));
         }
     }
+
+    // ---- Album spotlight / artist page text size ----
+
+    private string _textSize = "Medium";
+    /// <summary>"Small" (original size), "Medium" or "Large": scales the album spotlight and artist page.</summary>
+    public string TextSize
+    {
+        get => _textSize;
+        set
+        {
+            value = value is "Small" or "Large" ? value : "Medium";
+            if (!Set(ref _textSize, value)) return;
+            _settings.Current.SpotlightTextSize = value;
+            OnPropertyChanged(nameof(TextScale));
+        }
+    }
+
+    public double TextScale => _textSize switch { "Small" => 1.0, "Large" => 1.5, _ => 1.25 };
 
     /// <summary>Smallest shelf tile width; the shelves fit as many as possible and stretch them to fill.</summary>
     public double MinTileWidth => _artSize switch { "Small" => 120, "Large" => 236, _ => 168 };

@@ -1,0 +1,22 @@
+<UserControl x:Class="Flow.Views.TextSizePicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Self" ToolTip="Text size">
+    <!-- Text size: three "A"s of increasing size (Small / Medium / Large) -->
+    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+        <StackPanel Orientation="Horizontal">
+            <RadioButton Style="{StaticResource SegmentRadio}" Padding="10,4" GroupName="{Binding GroupName, ElementName=Self}" ToolTip="Smaller text"
+                         IsChecked="{Binding Value, ElementName=Self, Converter={StaticResource EqualsConv}, ConverterParameter=Small}">
+                <TextBlock Text="A" FontSize="11" FontWeight="SemiBold" Width="14" TextAlignment="Center" VerticalAlignment="Bottom"/>
+            </RadioButton>
+            <RadioButton Style="{StaticResource SegmentRadio}" Padding="10,4" GroupName="{Binding GroupName, ElementName=Self}" ToolTip="Medium text"
+                         IsChecked="{Binding Value, ElementName=Self, Converter={StaticResource EqualsConv}, ConverterParameter=Medium}">
+                <TextBlock Text="A" FontSize="14" FontWeight="SemiBold" Width="14" TextAlignment="Center" VerticalAlignment="Bottom"/>
+            </RadioButton>
+            <RadioButton Style="{StaticResource SegmentRadio}" Padding="10,4" GroupName="{Binding GroupName, ElementName=Self}" ToolTip="Larger text"
+                         IsChecked="{Binding Value, ElementName=Self, Converter={StaticResource EqualsConv}, ConverterParameter=Large}">
+                <TextBlock Text="A" FontSize="18" FontWeight="SemiBold" Width="14" TextAlignment="Center" VerticalAlignment="Bottom"/>
+            </RadioButton>
+        </StackPanel>
+    </Border>
+</UserControl>

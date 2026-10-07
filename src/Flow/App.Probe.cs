@@ -243,6 +243,26 @@ public partial class App
             await Task.Delay(2500);
             Snap(window, Path.Combine(outDir, "6_table_Large.png"));
 
+            // Album spotlight + artist page text sizes.
+            vm.Library.ArtSize = "Medium";
+            var bigAlbum = library.Snapshot().GroupBy(t => t.ArtKey).Where(g => g.Count() is >= 10 and <= 30)
+                .OrderByDescending(g => g.Count()).FirstOrDefault()?.First();
+            if (bigAlbum != null)
+            {
+                vm.Library.OpenAlbumOf(bigAlbum);
+                foreach (var size in new[] { "Small", "Medium", "Large" })
+                {
+                    vm.Library.TextSize = size;
+                    await Task.Delay(2000);
+                    Snap(window, Path.Combine(outDir, $"8_spotlight_{size}.png"));
+                }
+                vm.Library.SelectedAlbum = null;
+                vm.Library.OpenArtist(name);
+                await Task.Delay(2000);
+                Snap(window, Path.Combine(outDir, "9_artist_Large.png"));
+                vm.Library.SelectedArtist = null;
+            }
+
             vm.CurrentPage = AppPage.Playlists;
             vm.Playlists.LoadEntries(); // as App startup does after the Spotify cache loads
             var pl = vm.Playlists.Entries.FirstOrDefault(e => e.Name.Contains("Aphex", StringComparison.OrdinalIgnoreCase))
