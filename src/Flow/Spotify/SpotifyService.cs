@@ -643,6 +643,24 @@ public sealed class SpotifyService : ObservableObject
         };
     }
 
+    /// <summary>
+    /// Every track of a Spotify album, for "Show full album" in the album spotlight. Not added to the library.
+    /// Empty when Spotify can't be reached.
+    /// </summary>
+    public async Task<List<Track>> GetAlbumTracksAsync(string albumUri)
+    {
+        var list = new List<Track>();
+        var id = albumUri.Split(':').Last();
+        var r = await GetAsync($"/albums/{id}");
+        if (!r.Ok || r.Json == null) return list;
+        var album = r.Json;
+        void Add(JsonNode? t) { if (ParseTrack(t, album, DateTime.Now) is { } d) list.Add(ToTrack(d)); }
+        if (album["tracks"]?["items"] is JsonArray first) foreach (var t in first) Add(t);
+        var next = album["tracks"]?["next"]?.GetValue<string>();
+        if (next != null) await foreach (var t in PagesAsync(next)) Add(t);
+        return list;
+    }
+
     private static string ArtKeyFor(string albumId, string uri) =>
         ArtworkCache.MakeKey("", "", "spotify:album:" + (string.IsNullOrEmpty(albumId) ? uri : albumId));
 

@@ -21,7 +21,7 @@ public sealed class MainViewModel : ObservableObject
         LibraryService = library;
         Spotify = spotify;
         _settingsRef = settings;
-        Library = new LibraryViewModel(library, playback, settings, ui);
+        Library = new LibraryViewModel(library, playback, settings, ui, spotify);
         Playlists = new PlaylistsViewModel(library, playback, ui, ShowToast, () => spotify.Cache.Playlists, settings);
         Settings = new SettingsViewModel(settings, library, playback, spotify, ShowToast);
         playback.Notify += ShowToast;

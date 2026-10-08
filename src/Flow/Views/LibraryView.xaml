@@ -554,7 +554,9 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Width="260" Margin="0,0,32,0">
+                <!-- Scrolls when the text size makes the column taller than the window -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,32,0" Focusable="False">
+                <StackPanel Width="260">
                     <Button Style="{StaticResource PillButton}" HorizontalAlignment="Left" Command="{Binding CloseAlbumCommand}" Margin="0,0,0,18">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE72B;" Style="{StaticResource Glyph}" FontSize="12" Margin="0,0,8,0"/>
@@ -595,7 +597,16 @@
                             </StackPanel>
                         </Button>
                     </StackPanel>
-                </StackPanel>
+                    <!-- Spotify albums: fetch the complete tracklist (songs not in the library become playable here) -->
+                    <Button Style="{StaticResource PillButton}" HorizontalAlignment="Left" Margin="0,10,0,0"
+                            Command="{Binding ShowFullAlbumCommand}" ToolTip="Show every song on this album from Spotify"
+                            Visibility="{Binding CanShowFullAlbum, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{StaticResource SpotifyGreenBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Show full album"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel></ScrollViewer>
 
                 <ListBox x:Name="AlbumTracks" Grid.Column="1" Style="{StaticResource FlowList}" SelectionMode="Extended"
                          ItemsSource="{Binding SelectedAlbum.Tracks}" Margin="0,52,0,0"

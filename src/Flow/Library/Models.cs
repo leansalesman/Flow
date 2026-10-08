@@ -129,6 +129,8 @@ public sealed class AlbumInfo
     }
 
     public bool IsSpotify { get; }
+    /// <summary>The complete Spotify tracklist was fetched for this album ("Show full album").</summary>
+    public bool IsFullAlbum { get; init; }
 
     public string Key { get; }
     public string Title { get; }

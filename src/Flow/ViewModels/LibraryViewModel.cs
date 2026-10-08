@@ -29,8 +29,13 @@ public sealed class LibraryViewModel : ObservableObject
         (SortField.DateAdded, "Date Added"),
     };
 
-    public LibraryViewModel(LibraryService lib, PlaybackService pb, SettingsService settings, Dispatcher ui)
+    private readonly Flow.Spotify.SpotifyService? _spotify;
+
+    public LibraryViewModel(LibraryService lib, PlaybackService pb, SettingsService settings, Dispatcher ui,
+                            Flow.Spotify.SpotifyService? spotify = null)
     {
+        _spotify = spotify;
+        ShowFullAlbumCommand = new RelayCommand(async () => await ShowFullAlbumAsync(), () => CanShowFullAlbum && !_loadingFullAlbum);
         _lib = lib;
         _pb = pb;
         _settings = settings;
@@ -211,9 +216,46 @@ public sealed class LibraryViewModel : ObservableObject
     public AlbumInfo? SelectedAlbum
     {
         get => _selectedAlbum;
-        set { Set(ref _selectedAlbum, value); OnPropertyChanged(nameof(IsAlbumOpen)); OnPropertyChanged(nameof(ShowArtistOverlay)); }
+        set
+        {
+            Set(ref _selectedAlbum, value);
+            OnPropertyChanged(nameof(IsAlbumOpen));
+            OnPropertyChanged(nameof(ShowArtistOverlay));
+            OnPropertyChanged(nameof(CanShowFullAlbum));
+        }
     }
     public bool IsAlbumOpen => _selectedAlbum != null;
+
+    // ---- "Show full album": the whole Spotify tracklist, not just the songs in the library ----
+
+    public ICommand ShowFullAlbumCommand { get; }
+    private bool _loadingFullAlbum;
+
+    public bool CanShowFullAlbum => _selectedAlbum is { IsFullAlbum: false } a && _spotify?.IsConnected == true
+                                    && a.Tracks.Any(t => t.SpotifyAlbumUri != null);
+
+    private async Task ShowFullAlbumAsync()
+    {
+        var album = _selectedAlbum;
+        var uri = album?.Tracks.FirstOrDefault(t => t.SpotifyAlbumUri != null)?.SpotifyAlbumUri;
+        if (album == null || uri == null || _spotify == null) return;
+        _loadingFullAlbum = true;
+        List<Track> full;
+        try { full = await _spotify.GetAlbumTracksAsync(uri); }
+        finally { _loadingFullAlbum = false; }
+        if (!ReferenceEquals(_selectedAlbum, album) || full.Count == 0) return;
+
+        // Songs already in the library keep their favorites and play counts; songs from other
+        // copies of the album (e.g. local files) stay listed too.
+        var owned = album.Tracks.GroupBy(t => t.Path).ToDictionary(g => g.Key, g => g.First());
+        var merged = full.Select(t =>
+        {
+            if (owned.Remove(t.Path, out var mine)) return mine;
+            if (string.IsNullOrEmpty(t.Genre)) t.Genre = album.Genre;
+            return t;
+        }).Concat(owned.Values).ToList();
+        SelectedAlbum = new AlbumInfo(album.Key, merged, _lib.Art) { IsFullAlbum = true };
+    }
 
     // ---- Artist pages & links ----
 

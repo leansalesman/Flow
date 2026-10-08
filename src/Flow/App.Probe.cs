@@ -278,6 +278,21 @@ public partial class App
                     await Task.Delay(2000);
                     Snap(window, Path.Combine(outDir, $"8_spotlight_{size}.png"));
                 }
+                // "Show full album" on a Spotify album the library has only one song of (reads from Spotify only).
+                var single = library.Snapshot().Where(t => t.SpotifyAlbumUri != null)
+                    .GroupBy(t => t.SpotifyAlbumUri).FirstOrDefault(g => g.Count() == 1)?.First();
+                if (single != null)
+                {
+                    vm.Library.TextSize = "Medium";
+                    vm.Library.OpenAlbumOf(single);
+                    await Task.Delay(1500);
+                    Snap(window, Path.Combine(outDir, "8c_album_partial.png"));
+                    vm.Library.ShowFullAlbumCommand.Execute(null);
+                    await Task.Delay(5000);
+                    Snap(window, Path.Combine(outDir, "8d_album_full.png"));
+                    File.AppendAllText(Path.Combine(outDir, "state.txt"),
+                        $"full album: {single.Album} -> {vm.Library.SelectedAlbum?.Tracks.Count} tracks, full={vm.Library.SelectedAlbum?.IsFullAlbum}\n");
+                }
                 vm.Library.SelectedAlbum = null;
                 vm.Library.OpenArtist(name);
                 await Task.Delay(2000);
