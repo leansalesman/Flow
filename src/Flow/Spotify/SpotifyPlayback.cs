@@ -137,6 +137,7 @@ public sealed class SpotifyPlayback
         _deviceId = device;
         _albumUri = albumUri;
         _pendingSeekMs = -1;
+        _seekTargetMs = -1;
         object body = albumUri != null
             ? new { context_uri = albumUri, offset = new { uri = uris[0] }, position_ms = startMs }
             : new { uris = uris.ToArray(), position_ms = startMs };
@@ -263,12 +264,29 @@ public sealed class SpotifyPlayback
             // While the same song is playing, Spotify turns that play command into a seek_to (which librespot
             // drops); while paused it delivers a real load. So pause first, then play from the new spot.
             Anchor(_progressMs, flush: true);
-            if (_playing)
+            if (!_playing) { _pendingSeekMs = _progressMs; return; }   // applied on resume
+
+            // One seek at a time: a click on the timeline fires two seeks at once (mouse up + drag end), and
+            // overlapping pause/play pairs make Spotify answer 503 to both. A seek that arrives while one is
+            // running just moves the target; the running loop plays the newest one.
+            _seekTargetMs = _progressMs;
+            if (_seeking) return;
+            _seeking = true;
+            try
             {
-                await _api.SendAsync(HttpMethod.Put, $"/me/player/pause?device_id={_deviceId}");
-                await ReplayAtAsync(_progressMs);
+                while (_seekTargetMs >= 0)
+                {
+                    long ms = _seekTargetMs;
+                    _seekTargetMs = -1;
+                    await _api.SendAsync(HttpMethod.Put, $"/me/player/pause?device_id={_deviceId}");
+                    if (!await ReplayAtAsync(ms))
+                    {
+                        await Task.Delay(700);   // device busy (503): try once more
+                        await ReplayAtAsync(ms);
+                    }
+                }
             }
-            else _pendingSeekMs = _progressMs;   // applied on resume
+            finally { _seeking = false; }
             return;
         }
         await _api.SendAsync(HttpMethod.Put, $"/me/player/seek?position_ms={_progressMs}");
@@ -276,6 +294,8 @@ public sealed class SpotifyPlayback
 
     private string? _deviceId, _albumUri;
     private long _pendingSeekMs = -1;
+    private long _seekTargetMs = -1;
+    private bool _seeking;
 
     /// <summary>Built-in engine: restarts the current song (in its album run) at the given position.</summary>
     private async Task<bool> ReplayAtAsync(long ms)
