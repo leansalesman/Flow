@@ -260,8 +260,14 @@ public sealed class SpotifyPlayback
         {
             // librespot v0.8 drops the Web API's seek command, so the built-in engine seeks by playing the
             // current song again from the new position (the same command that starts songs, which it honours).
+            // While the same song is playing, Spotify turns that play command into a seek_to (which librespot
+            // drops); while paused it delivers a real load. So pause first, then play from the new spot.
             Anchor(_progressMs, flush: true);
-            if (_playing) await ReplayAtAsync(_progressMs);
+            if (_playing)
+            {
+                await _api.SendAsync(HttpMethod.Put, $"/me/player/pause?device_id={_deviceId}");
+                await ReplayAtAsync(_progressMs);
+            }
             else _pendingSeekMs = _progressMs;   // applied on resume
             return;
         }
