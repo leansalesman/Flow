@@ -6,6 +6,8 @@ namespace Flow.Services;
 
 public enum RepeatMode { Off, All, One }
 public enum ReplayGainMode { Off, Track, Album }
+/// <summary>How Spotify songs play: through the Spotify app (default) or Flow's built-in librespot engine.</summary>
+public enum SpotifyEngine { SpotifyApp, BuiltIn }
 
 public sealed class AppSettings
 {
@@ -59,6 +61,13 @@ public sealed class AppSettings
     public bool SpotifyImportAlbums { get; set; } = true;
     public bool SpotifyImportPlaylists { get; set; } = true;
     public DateTime? SpotifyLastSync { get; set; }
+
+    // Built-in Spotify playback (librespot, experimental)
+    public SpotifyEngine SpotifyEngine { get; set; } = SpotifyEngine.SpotifyApp;
+    public string LibrespotDeviceName { get; set; } = "Flow";
+    public int LibrespotBitrate { get; set; } = 320;            // 96 | 160 | 320
+    public bool LibrespotNormalisation { get; set; }
+    public bool LibrespotStartWithFlow { get; set; }            // false = start on the first Spotify play
 }
 
 public sealed class SettingsService
