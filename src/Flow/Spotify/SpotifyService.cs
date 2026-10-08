@@ -38,7 +38,7 @@ public sealed class SpotifySearchResults
 }
 
 /// <summary>A song found on Spotify, with a small cover image URL for the result row.</summary>
-public sealed record SpotifySearchSong(Track Track, string? ImageUrl);
+public sealed record SpotifySearchSong(Track Track, string? ImageUrl, bool InLibrary = false);
 
 /// <summary>An album found on Spotify.</summary>
 public sealed record SpotifySearchAlbum(string Uri, string Name, string Artist, int Year, int TotalTracks,
@@ -76,7 +76,7 @@ public sealed class SpotifyService : ObservableObject
     public const string DashboardUrl = "https://developer.spotify.com/dashboard";
 
     private const string Scopes =
-        "user-library-read playlist-read-private playlist-read-collaborative " +
+        "user-library-read user-library-modify playlist-read-private playlist-read-collaborative " +
         "user-read-playback-state user-modify-playback-state user-read-currently-playing";
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = false };
@@ -659,6 +659,55 @@ public sealed class SpotifyService : ObservableObject
                 : new List<string>(),
         };
     }
+
+    /// <summary>
+    /// "+" on Search: saves the song to the user's Spotify Liked Songs and adds it to Flow's library (it then
+    /// stays there through syncs, as a Liked Song). Asks for Spotify's "modify library" permission once if this
+    /// connection predates it. Returns null on success or a message.
+    /// </summary>
+    public async Task<string?> AddToLibraryAsync(Track track)
+    {
+        var uri = track.SpotifyUri;
+        if (uri == null) return "Only Spotify songs can be added to Spotify.";
+        var id = uri.Split(':').Last();
+        var r = await SendAsync(HttpMethod.Put, $"/me/tracks?ids={id}");
+        if (r.Status is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
+        {
+            // Connections made before this feature can only read the library: approve the new permission once.
+            SpotifyLog.Write($"Save to Liked Songs refused ({(int)r.Status}); asking for library permission");
+            if (!await ConnectAsync()) return "Flow needs your OK in the browser to save songs to Spotify.";
+            r = await SendAsync(HttpMethod.Put, $"/me/tracks?ids={id}");
+        }
+        if (r.Status is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+            r = await SendAsync(HttpMethod.Put, $"/me/library?uris={Uri.EscapeDataString(uri)}");
+        if (!r.Ok)
+        {
+            SpotifyLog.Write($"Save to Liked Songs failed: {(int)r.Status}");
+            return $"Spotify couldn't save the song ({(int)r.Status}).";
+        }
+
+        if (!Cache.Tracks.Any(t => t.Uri == uri))
+        {
+            var dto = ToDto(track);
+            dto.Added = DateTime.Now;
+            Cache.Tracks.Add(dto);
+            ApplyGenres();
+            SaveCache();
+            await _library.Art.EnsureFromUrlAsync(ArtKeyFor(dto.AlbumId, dto.Uri), dto.ArtUrl);
+            _library.SetSpotifyTracks(Cache.Tracks.Select(ToTrack));
+        }
+        SpotifyLog.Write($"Added to Liked Songs and Flow's library: {uri}");
+        return null;
+    }
+
+    /// <summary>The storable form of a Spotify song (for the library cache and the saved queue).</summary>
+    public static SpotifyTrackDto ToDto(Track t) => new()
+    {
+        Uri = t.Path, Title = t.Title, Artist = t.Artist, AlbumArtist = t.AlbumArtist, Album = t.Album,
+        AlbumId = t.SpotifyAlbumUri?.Split(':').Last() ?? "", Year = t.Year, TrackNumber = t.TrackNumber,
+        DiscNumber = t.DiscNumber, DurationMs = (long)t.Duration.TotalMilliseconds, ArtUrl = t.ArtUrl,
+        Added = t.DateAdded, Genre = t.Genre,
+    };
 
     /// <summary>Searches all of Spotify (songs and albums). Null when Spotify can't be reached.</summary>
     public async Task<SpotifySearchResults?> SearchAsync(string query)

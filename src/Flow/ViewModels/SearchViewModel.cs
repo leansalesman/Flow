@@ -15,11 +15,22 @@ public sealed class SearchViewModel : ObservableObject
     private readonly PlaybackService _pb;
     private readonly LibraryService _lib;
     private readonly Action<AlbumInfo> _openAlbum;
+    private readonly Action<string> _toast;
     private readonly DispatcherTimer _debounce;
     private int _generation;
 
-    public SearchViewModel(SpotifyService spotify, PlaybackService pb, LibraryService lib, Action<AlbumInfo> openAlbum, Dispatcher ui)
+    public SearchViewModel(SpotifyService spotify, PlaybackService pb, LibraryService lib, Action<AlbumInfo> openAlbum,
+                           Action<string> toast, Dispatcher ui)
     {
+        _toast = toast;
+        AddSongCommand = new RelayCommand(async p => { if (p is SpotifySearchSong s) await AddSongAsync(s); });
+        OpenSongAlbumCommand = new RelayCommand(async p =>
+        {
+            // Title, artist and album links on a song open its album in the spotlight.
+            if (p is SpotifySearchSong { Track.SpotifyAlbumUri: { } albumUri } s)
+                await OpenAlbumAsync(new SpotifySearchAlbum(albumUri, s.Track.Album, s.Track.AlbumArtist, s.Track.Year, 0,
+                                                            s.ImageUrl, s.Track.ArtUrl));
+        });
         _spotify = spotify;
         _pb = pb;
         _lib = lib;
@@ -35,6 +46,8 @@ public sealed class SearchViewModel : ObservableObject
     public ObservableCollection<SpotifySearchAlbum> Albums { get; } = new();
     public ICommand PlaySongCommand { get; }
     public ICommand OpenAlbumCommand { get; }
+    public ICommand AddSongCommand { get; }
+    public ICommand OpenSongAlbumCommand { get; }
 
     public bool IsConnected => _spotify.IsConnected;
 
@@ -75,10 +88,22 @@ public sealed class SearchViewModel : ObservableObject
         Songs.Clear();
         Albums.Clear();
         if (r == null) { HasResults = false; Status = "Spotify search isn't available right now. Try again in a moment."; return; }
-        foreach (var s in r.Songs) Songs.Add(s);
+        var owned = OwnedLookup();
+        foreach (var s in r.Songs) Songs.Add(owned.ContainsKey(s.Track.Path) ? s with { InLibrary = true } : s);
         foreach (var a in r.Albums) Albums.Add(a);
         HasResults = Songs.Count + Albums.Count > 0;
         Status = HasResults ? "" : $"No results for \"{q}\"";
+    }
+
+    /// <summary>"+": saves the song to Spotify Liked Songs and adds it to Flow's library.</summary>
+    private async Task AddSongAsync(SpotifySearchSong song)
+    {
+        if (song.InLibrary) return;
+        var err = await _spotify.AddToLibraryAsync(song.Track);
+        if (err != null) { _toast(err); return; }
+        int i = Songs.IndexOf(song);
+        if (i >= 0) Songs[i] = song with { InLibrary = true };
+        _toast($"Added \"{song.Track.Title}\" to your library and Spotify Liked Songs");
     }
 
     /// <summary>Plays the song; the other songs in the results follow it in the queue.</summary>

@@ -29,7 +29,7 @@ public sealed class MainViewModel : ObservableObject
             CurrentPage = AppPage.Library;
             Library.SelectedArtist = null;
             Library.SelectedAlbum = album;
-        }, ui);
+        }, ShowToast, ui);
         Settings = new SettingsViewModel(settings, library, playback, spotify, ShowToast);
         playback.Notify += ShowToast;
         spotify.LibraryImported += () => ui.BeginInvoke(() =>

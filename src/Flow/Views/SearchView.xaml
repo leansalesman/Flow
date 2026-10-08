@@ -53,11 +53,12 @@
                             <Button Style="{StaticResource ResultButton}" Padding="8,6" ToolTip="Play"
                                     Command="{Binding DataContext.PlaySongCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding}">
-                                <Grid>
+                                <Grid x:Name="Row">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="2*"/>
                                         <ColumnDefinition Width="1.4*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <Grid Width="44" Height="44" Margin="0,0,14,0">
@@ -69,17 +70,46 @@
                                                 <ImageBrush ImageSource="{Binding ImageUrl, TargetNullValue={x:Null}}" Stretch="UniformToFill"/>
                                             </Border.Background>
                                         </Border>
+                                        <!-- Play hint on hover -->
+                                        <Border x:Name="PlayHint" CornerRadius="5" Background="#80000000" Visibility="Collapsed">
+                                            <TextBlock Text="&#xE768;" Style="{StaticResource Glyph}" FontSize="16" Foreground="White"/>
+                                        </Border>
                                     </Grid>
+                                    <!-- Title / artist / album link to the song's album -->
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                                        <TextBlock Text="{Binding Track.Title}" FontSize="14" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Text="{Binding Track.DisplayArtist}" Style="{StaticResource Tertiary}" FontSize="13"/>
+                                        <Button Style="{StaticResource LinkButton}" Content="{Binding Track.Title}" FontSize="14"
+                                                Foreground="{DynamicResource TextPrimaryBrush}" ToolTip="Open album"
+                                                Command="{Binding DataContext.OpenSongAlbumCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
+                                        <Button Style="{StaticResource LinkButton}" Content="{Binding Track.DisplayArtist}" FontSize="13"
+                                                Foreground="{DynamicResource TextTertiaryBrush}" ToolTip="Open album"
+                                                Command="{Binding DataContext.OpenSongAlbumCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
                                     </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="{Binding Track.DisplayAlbum}" Style="{StaticResource Secondary}"
-                                               VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                    <Button Grid.Column="2" Style="{StaticResource LinkButton}" Content="{Binding Track.DisplayAlbum}" FontSize="13"
+                                            Margin="0,0,16,0" ToolTip="Open album"
+                                            Command="{Binding DataContext.OpenSongAlbumCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"/>
                                     <TextBlock Grid.Column="3" Text="{Binding Track.DurationText}" Style="{StaticResource Tertiary}"
-                                               FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                               FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <!-- "+": add to Flow's library and Spotify Liked Songs (a check once it's there) -->
+                                    <Button x:Name="AddButton" Grid.Column="4" Style="{StaticResource IconButton}" Width="32" Height="32" FontSize="13"
+                                            Content="&#xE710;" ToolTip="Add to your library (and Spotify Liked Songs)"
+                                            Foreground="{DynamicResource TextSecondaryBrush}"
+                                            Command="{Binding DataContext.AddSongCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"/>
                                 </Grid>
                             </Button>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsMouseOver, ElementName=Row}" Value="True">
+                                    <Setter TargetName="PlayHint" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding InLibrary}" Value="True">
+                                    <Setter TargetName="AddButton" Property="Content" Value="&#xE73E;"/>
+                                    <Setter TargetName="AddButton" Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                    <Setter TargetName="AddButton" Property="ToolTip" Value="In your library"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

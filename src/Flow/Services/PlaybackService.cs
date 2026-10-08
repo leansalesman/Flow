@@ -699,13 +699,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         s.LastQueueSpotify = Queue.Take(5000)
             .Where(t => t.IsSpotify && _library.Find(t.Path) == null)
             .GroupBy(t => t.Path).Select(g => g.First()).Take(1000)
-            .Select(t => new SpotifyTrackDto
-            {
-                Uri = t.Path, Title = t.Title, Artist = t.Artist, AlbumArtist = t.AlbumArtist, Album = t.Album,
-                AlbumId = t.SpotifyAlbumUri?.Split(':').Last() ?? "", Year = t.Year, TrackNumber = t.TrackNumber,
-                DiscNumber = t.DiscNumber, DurationMs = (long)t.Duration.TotalMilliseconds, ArtUrl = t.ArtUrl,
-                Added = t.DateAdded, Genre = t.Genre,
-            }).ToList();
+            .Select(SpotifyService.ToDto).ToList();
     }
 
     public void Restore()
