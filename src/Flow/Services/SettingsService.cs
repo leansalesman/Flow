@@ -114,6 +114,6 @@ public sealed class SettingsService
             File.WriteAllText(tmp, JsonSerializer.Serialize(Current, Json));
             File.Move(tmp, _path, true);
         }
-        catch { /* best effort */ }
+        catch (Exception ex) { App.Log(ex); }   // never lose the saved place silently
     }
 }

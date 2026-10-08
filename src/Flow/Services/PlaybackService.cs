@@ -532,8 +532,20 @@ public sealed class PlaybackService : ObservableObject, IDisposable
 
         if (track.IsSpotify)
         {
+            SpotifyLog.Write($"Song {index + 1} of {Queue.Count}: {track.Artist} - {track.Title} ({track.Path}), play={play}");
             _engine.Stop();
-            if (play) await StartSpotifyAsync(index, startAt.TotalSeconds, token);
+            if (play)
+            {
+                try { await StartSpotifyAsync(index, startAt.TotalSeconds, token); }
+                catch (Exception ex)
+                {
+                    // Never leave Flow showing "playing" for a song that didn't start.
+                    App.Log(ex);
+                    SpotifyLog.Write("Starting the song failed: " + ex.Message);
+                    IsPlaying = false;
+                    Notify?.Invoke($"Can't play “{track.Title}”: {ex.Message}");
+                }
+            }
             else
             {
                 await _sp.DeactivateAsync(pause: true);
@@ -704,7 +716,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
     private void SaveStateToDisk()
     {
         _lastAutoSave = DateTime.UtcNow;
-        try { SaveState(); _settings.Save(); } catch (Exception ex) { DiagLog.Write("Saving playback state failed: " + ex.Message); }
+        try { SaveState(); _settings.Save(); } catch (Exception ex) { App.Log(ex); }
     }
 
     // ---- Persistence -------------------------------------------------------------------------
@@ -712,6 +724,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
     public void SaveState()
     {
         var s = _settings.Current;
+        if (_current != null) SpotifyLog.Write($"Saving place: song {_index + 1} of {Queue.Count}, {_current.Title} at {PositionSeconds:0}s");
         s.LastQueue = Queue.Select(t => t.Path).Take(5000).ToList();
         s.LastIndex = _index;
         s.LastPosition = PositionSeconds;
@@ -748,6 +761,8 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         }).ContinueWith(t =>
         {
             var (list, idx) = t.Result;
+            SpotifyLog.Write($"Restore: {list.Count} of {paths.Count} saved songs found, song {index + 1} {(idx < 0 ? "missing" : "found")}" +
+                             (HasTrack ? " (skipped: a song was already chosen)" : ""));
             if (list.Count == 0 || HasTrack) return;
             if (idx < 0) { idx = 0; pos = 0; }
             _originalOrder = list.ToList();
