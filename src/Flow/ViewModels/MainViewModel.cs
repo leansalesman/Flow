@@ -13,6 +13,7 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly DispatcherTimer _toastTimer;
     private readonly SettingsService _settingsRef;
+    public SettingsService SettingsService => _settingsRef;
 
     public MainViewModel(PlaybackService playback, LibraryService library, SettingsService settings,
                          Flow.Spotify.SpotifyService spotify, Dispatcher ui)

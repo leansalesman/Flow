@@ -334,6 +334,28 @@ public partial class App
                 Snap(window, Path.Combine(outDir, "10b_search_album.png"));
                 vm.Library.SelectedAlbum = null;
             }
+            // Favorites filter (in memory; the probe never saves settings).
+            vm.CurrentPage = AppPage.Library;
+            vm.Library.FavoritesOnly = true;
+            await Task.Delay(2500);
+            Snap(window, Path.Combine(outDir, "12_favorites.png"));
+            vm.Library.FavoritesOnly = false;
+
+            // Pop-out mini player, off-screen: plain, with controls, art only.
+            Flow.Views.MiniPlayerWindow.ProbeMode = true;
+            Flow.Views.MiniPlayerWindow.Toggle(vm, settings);
+            var mini = Flow.Views.MiniPlayerWindow.Current!;
+            await Task.Delay(1500);
+            Snap(mini, Path.Combine(outDir, "11_mini.png"));
+            mini.ProbeShowControls(true);
+            await Task.Delay(700);
+            Snap(mini, Path.Combine(outDir, "11b_mini_controls.png"));
+            mini.ProbeShowControls(false);
+            mini.ProbeTogglePanel();
+            await Task.Delay(900);
+            Snap(mini, Path.Combine(outDir, "11c_mini_art_only.png"));
+            mini.Close();
+
             File.WriteAllText(Path.Combine(outDir, "state.txt"),
                 $"artist={name}\nafter Back: artistOverlay={vm.Library.ShowArtistOverlay} albumOpen={vm.Library.IsAlbumOpen}\n" +
                 $"albums={vm.Library.SelectedArtist?.Albums.Count} appearsOn={vm.Library.SelectedArtist?.AppearsOn.Count} songs={vm.Library.SelectedArtist?.Tracks.Count}");

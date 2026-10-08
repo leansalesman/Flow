@@ -104,6 +104,11 @@ public partial class LibraryView : UserControl
     {
         if (Lib == null) return;
         var menu = new ContextMenu { PlacementTarget = SortButton, Placement = PlacementMode.Bottom };
+        // Favorites: only songs with a heart, and the albums they're on.
+        var fav = new MenuItem { Header = "Favorites", IsChecked = Lib.FavoritesOnly };
+        fav.Click += (_, _) => Lib.FavoritesOnly = !Lib.FavoritesOnly;
+        menu.Items.Add(fav);
+        menu.Items.Add(new Separator());
         foreach (var (field, label) in LibraryViewModel.SortOptions)
         {
             var f = field;

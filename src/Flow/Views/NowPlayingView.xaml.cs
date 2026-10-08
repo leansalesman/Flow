@@ -18,6 +18,11 @@ public partial class NowPlayingView : UserControl
     private MainViewModel? _vm;
 
     private void Devices_Click(object sender, RoutedEventArgs e) => DeviceMenu.Show((FrameworkElement)sender, _vm);
+
+    private void PopOut_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm != null) MiniPlayerWindow.Toggle(_vm, _vm.SettingsService);
+    }
     private readonly DispatcherTimer _holdTimer;
     private Button? _holdButton;
     private bool _scrubbing, _suppressClick;

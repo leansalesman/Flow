@@ -59,7 +59,10 @@ public sealed class Track : ObservableObject
     public DateTime? LastPlayed { get => _lastPlayed; set => Set(ref _lastPlayed, value); }
 
     private bool _isFavorite;
-    public bool IsFavorite { get => _isFavorite; set => Set(ref _isFavorite, value); }
+    public bool IsFavorite { get => _isFavorite; set { if (Set(ref _isFavorite, value)) FavoriteChanged?.Invoke(this); } }
+
+    /// <summary>Raised when any song gets or loses its heart (the Favorites library filter follows it).</summary>
+    public static event Action<Track>? FavoriteChanged;
 
     private bool _isPlayingNow;
     public bool IsPlayingNow { get => _isPlayingNow; set => Set(ref _isPlayingNow, value); }

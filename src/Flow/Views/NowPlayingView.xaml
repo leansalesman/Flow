@@ -253,5 +253,9 @@
                 </ListBox>
             </Grid>
         </Border>
+        <!-- Pop out the mini player (floats above all windows) -->
+        <Button Style="{StaticResource IconButton}" Width="38" Height="38" FontSize="15" Content="&#xE8A7;"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,18,18"
+                Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="Pop out mini player" Click="PopOut_Click"/>
     </Grid>
 </UserControl>

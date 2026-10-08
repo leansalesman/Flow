@@ -33,6 +33,15 @@ public sealed class AppSettings
     public string Theme { get; set; } = "Minimal";
     /// <summary>Check GitHub for a newer Flow once a day (Settings, About).</summary>
     public bool AutoCheckUpdates { get; set; } = true;
+
+    // Pop-out mini player: where it was, its size, and whether the song panel under the art is shown.
+    public double? MiniPlayerLeft { get; set; }
+    public double? MiniPlayerTop { get; set; }
+    public double MiniPlayerWidth { get; set; } = 316;
+    public bool MiniPlayerSongPanel { get; set; } = true;
+
+    /// <summary>Library shows only songs with a heart (and the albums they're on).</summary>
+    public bool LibraryFavoritesOnly { get; set; }
     public DateTime? LastUpdateCheck { get; set; }
 
     public List<string> LastQueue { get; set; } = new();

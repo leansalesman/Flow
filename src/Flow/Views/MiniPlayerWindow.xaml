@@ -1,0 +1,220 @@
+<Window x:Class="Flow.Views.MiniPlayerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Flow.Views"
+        xmlns:svc="clr-namespace:Flow.Services"
+        Title="Flow mini player" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize" UseLayoutRounding="True"
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextPrimaryBrush}"
+        Width="316" Height="388">
+    <!-- Everything is laid out at 300 wide and scaled as one piece, so resizing grows or shrinks it evenly. -->
+    <Grid Margin="8">
+        <!-- Shadow, kept off the content so the art and timeline don't redraw through an effect -->
+        <Border CornerRadius="12" Background="Black" Opacity="0.55" Margin="2,4,2,0">
+            <Border.Effect>
+                <BlurEffect Radius="12"/>
+            </Border.Effect>
+        </Border>
+        <Viewbox Stretch="Uniform">
+            <Border x:Name="Frame" Width="300" CornerRadius="12" BorderThickness="1"
+                    Background="{DynamicResource MenuBrush}" BorderBrush="{DynamicResource MenuStrokeBrush}"
+                    MouseLeftButtonDown="Frame_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="298"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Album art -->
+                    <Border x:Name="ArtFallback" CornerRadius="11" Background="{DynamicResource SurfaceStrongBrush}">
+                        <TextBlock Text="&#xEC4F;" Style="{StaticResource Glyph}" FontSize="64" Foreground="{DynamicResource TextTertiaryBrush}"/>
+                    </Border>
+                    <Border x:Name="Art" CornerRadius="11">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding Playback.CurrentArt}" Stretch="UniformToFill"/>
+                        </Border.Background>
+                    </Border>
+
+                    <!-- Controls: shown while the pointer is over the player, then fade away -->
+                    <Grid x:Name="Controls" Opacity="0" IsHitTestVisible="False">
+                        <Grid.Resources>
+                            <!-- White on the art, whatever the theme -->
+                            <SolidColorBrush x:Key="TextPrimaryBrush" Color="White"/>
+                            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#E6FFFFFF"/>
+                            <SolidColorBrush x:Key="TextTertiaryBrush" Color="#B8FFFFFF"/>
+                            <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#30FFFFFF"/>
+                            <SolidColorBrush x:Key="SurfacePressedBrush" Color="#1AFFFFFF"/>
+                            <SolidColorBrush x:Key="SurfaceStrongBrush" Color="#55FFFFFF"/>
+                            <SolidColorBrush x:Key="SurfaceBrush" Color="#30FFFFFF"/>
+                        </Grid.Resources>
+                        <Border CornerRadius="11">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#99000000" Offset="0"/>
+                                    <GradientStop Color="#40000000" Offset="0.3"/>
+                                    <GradientStop Color="#55000000" Offset="0.6"/>
+                                    <GradientStop Color="#C0000000" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Grid Margin="6">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Top: back to Flow · drag grip · show/hide song panel · close -->
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="11"
+                                        Content="&#xE8BB;" ToolTip="Close mini player" Click="Close_Click"/>
+                                <Button x:Name="PanelToggle" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="11"
+                                        Content="&#xE70E;" ToolTip="Hide the song panel" Click="PanelToggle_Click"/>
+                                <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12"
+                                        Content="&#xE73F;" ToolTip="Back to Flow" Click="BackToFlow_Click"/>
+                                <TextBlock Text="&#xE76F;" Style="{StaticResource Glyph}" FontSize="14" Foreground="#B8FFFFFF"
+                                           ToolTip="Drag to move"/>
+                            </DockPanel>
+
+                            <!-- Center: shuffle · previous · play/pause · next · repeat -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ToggleButton Style="{StaticResource IconToggle}" Content="&#xE8B1;" ToolTip="Shuffle" Width="34" Height="34" FontSize="13"
+                                              IsChecked="{Binding Playback.Shuffle}" Margin="0,0,4,0"/>
+                                <Button Style="{StaticResource IconButton}" Content="&#xE892;" FontSize="18" Width="40" Height="40"
+                                        ToolTip="Previous" Click="Prev_Click"/>
+                                <Button Style="{StaticResource PlayButton}" Width="54" Height="54" FontSize="19" Margin="8,0" Command="{Binding PlayPauseCommand}"
+                                        ToolTip="Play / Pause  (Space)"
+                                        Content="{Binding Playback.IsPlaying, Converter={StaticResource BoolToText}, ConverterParameter='&#xE769;|&#xE768;'}"/>
+                                <Button Style="{StaticResource IconButton}" Content="&#xE893;" FontSize="18" Width="40" Height="40"
+                                        ToolTip="Next" Click="Next_Click"/>
+                                <ToggleButton Style="{StaticResource IconToggle}" Width="34" Height="34" FontSize="13" Margin="4,0,0,0" ToolTip="Repeat"
+                                              Content="{Binding Playback.Repeat, Converter={StaticResource RepeatGlyph}}"
+                                              IsChecked="{Binding Playback.Repeat, Mode=OneWay, Converter={StaticResource RepeatActive}}"
+                                              Command="{Binding RepeatCommand}"/>
+                            </StackPanel>
+
+                            <!-- Favorite · Up Next · volume -->
+                            <DockPanel Grid.Row="2" Margin="2,0,2,2">
+                                <ToggleButton Style="{StaticResource IconToggle}" Width="30" Height="30" FontSize="12" ToolTip="Favorite"
+                                              IsChecked="{Binding Playback.CurrentTrack.IsFavorite, Mode=OneWay}"
+                                              Content="{Binding Playback.CurrentTrack.IsFavorite, Converter={StaticResource BoolToText}, ConverterParameter='&#xEB52;|&#xE006;'}"
+                                              Command="{Binding FavoriteCommand}"/>
+                                <ToggleButton x:Name="QueueToggle" Style="{StaticResource IconToggle}" Width="30" Height="30" FontSize="12"
+                                              Content="&#xE90B;" ToolTip="Up Next" Margin="2,0,0,0" Click="QueueToggle_Click"/>
+                                <Slider DockPanel.Dock="Right" Style="{StaticResource FlowSlider}" Width="86" Minimum="0" Maximum="1"
+                                        VerticalAlignment="Center" SmallChange="0.02" LargeChange="0.1" Value="{Binding Playback.Volume}"/>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="30" Height="30" FontSize="12"
+                                        Command="{Binding MuteCommand}" ToolTip="Mute">
+                                    <Button.Content>
+                                        <MultiBinding Converter="{StaticResource VolumeGlyph}">
+                                            <Binding Path="Playback.Volume"/>
+                                            <Binding Path="Playback.IsMuted"/>
+                                        </MultiBinding>
+                                    </Button.Content>
+                                </Button>
+                                <Border/>
+                            </DockPanel>
+
+                            <!-- Timeline -->
+                            <Grid Grid.Row="3" Margin="4,0,4,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="34"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="34"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Value, ElementName=Timeline, Converter={StaticResource SecondsToTime}}" FontSize="10"
+                                           Foreground="#E6FFFFFF" VerticalAlignment="Center"/>
+                                <Slider x:Name="Timeline" Grid.Column="1" Style="{StaticResource FlowSlider}" Margin="4,0"
+                                        Minimum="0" Maximum="{Binding Playback.DurationSeconds}"
+                                        Value="{Binding Playback.PositionSeconds, Mode=OneWay}"
+                                        PreviewMouseLeftButtonDown="Timeline_Down" PreviewMouseLeftButtonUp="Timeline_Up"
+                                        Thumb.DragStarted="Timeline_DragStarted" Thumb.DragCompleted="Timeline_DragCompleted"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Playback.DurationSeconds, Converter={StaticResource SecondsToTime}}" FontSize="10"
+                                           Foreground="#E6FFFFFF" VerticalAlignment="Center" TextAlignment="Right"/>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+
+                    <!-- Up Next, over the art -->
+                    <Border x:Name="QueuePanel" Visibility="Collapsed" CornerRadius="11" Background="{DynamicResource OverlayBrush}">
+                        <Grid Margin="8,6,4,8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <DockPanel Margin="4,0,0,4">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Width="28" Height="28" FontSize="10"
+                                        Content="&#xE8BB;" ToolTip="Close Up Next" Click="QueueClose_Click"/>
+                                <TextBlock Text="Up Next" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <ListBox x:Name="QueueList" Grid.Row="1" Style="{StaticResource FlowList}" ItemsSource="{Binding Playback.Queue}"
+                                     MouseDoubleClick="QueueList_DoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Height="36">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="16"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <local:NowPlayingIndicator HorizontalAlignment="Left"
+                                                       Visibility="{Binding IsPlayingNow, Converter={StaticResource BoolToVis}}"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock x:Name="T" Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="12"/>
+                                                <TextBlock Text="{Binding DisplayArtist}" Style="{StaticResource Tertiary}" FontSize="10" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding DurationText}" Style="{StaticResource Tertiary}" FontSize="10"
+                                                       VerticalAlignment="Center" Margin="6,0"/>
+                                        </Grid>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsPlayingNow}" Value="True">
+                                                <Setter TargetName="T" Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Song panel (the LCD in the Brushed Metal themes); can be hidden for art only -->
+                    <Border x:Name="SongPanel" Grid.Row="1" Margin="6" Padding="10,6,10,7" CornerRadius="8" svc:LcdScope.IsLcd="True"
+                            Background="{DynamicResource NowPlayingLcdBrush}" BorderBrush="{DynamicResource NowPlayingLcdStrokeBrush}" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" FontFamily="{StaticResource DisplayFont}">
+                                <Run Text="{Binding Playback.CurrentTrack.Title, Mode=OneWay}"/><Run Text=" • " Foreground="{DynamicResource TextTertiaryBrush}"/><Run Text="{Binding Playback.CurrentTrack.DisplayArtist, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </TextBlock>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource SpotifyGreenBrush}" VerticalAlignment="Center" Margin="0,0,6,0"
+                                         Visibility="{Binding Playback.CurrentIsSpotify, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Style="{StaticResource Tertiary}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Text="{Binding Playback.CurrentTrack.DisplayAlbum}"
+                                           Visibility="{Binding Playback.CurrentIsSpotify, Converter={StaticResource InverseBoolToVis}}"/>
+                                <TextBlock Style="{StaticResource Tertiary}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Text="{Binding Playback.PlayingOnText}"
+                                           Visibility="{Binding Playback.CurrentIsSpotify, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Viewbox>
+        <!-- Resize grip: keeps the player's shape, so it scales evenly -->
+        <Thumb x:Name="Grip" Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,1,1"
+               Cursor="SizeNWSE" DragDelta="Grip_DragDelta" DragCompleted="Grip_DragCompleted" Opacity="0">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Grid Background="Transparent">
+                        <TextBlock Text="&#xE76F;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="{DynamicResource TextTertiaryBrush}"
+                                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,2">
+                            <TextBlock.RenderTransform>
+                                <RotateTransform Angle="-45" CenterX="5" CenterY="5"/>
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                    </Grid>
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+    </Grid>
+</Window>

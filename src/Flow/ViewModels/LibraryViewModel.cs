@@ -43,6 +43,7 @@ public sealed class LibraryViewModel : ObservableObject
         _isGridView = settings.Current.LibraryView != "Table";
         _sortField = Enum.TryParse<SortField>(settings.Current.SortField, out var sf) ? sf : SortField.ArtistName;
         _sortDescending = settings.Current.SortDescending;
+        _favoritesOnly = settings.Current.LibraryFavoritesOnly;
         _source = settings.Current.LibrarySource is "Local" or "Spotify" ? settings.Current.LibrarySource : "All";
         _artSize = settings.Current.LibraryArtSize is "Small" or "Large" ? settings.Current.LibraryArtSize : "Medium";
         _textSize = settings.Current.SpotlightTextSize is "Small" or "Large" ? settings.Current.SpotlightTextSize : "Medium";
@@ -51,6 +52,8 @@ public sealed class LibraryViewModel : ObservableObject
         _rebuildTimer.Tick += (_, _) => { _rebuildTimer.Stop(); Rebuild(); };
 
         _lib.Changed += () => _ui.BeginInvoke(() => ScheduleRebuild(600));
+        // Hearting or un-hearting a song updates the Favorites view.
+        Track.FavoriteChanged += _ => { if (_favoritesOnly) _ui.BeginInvoke(() => ScheduleRebuild(250)); };
         _lib.StatusChanged += s => _ui.BeginInvoke(() => ScanStatus = s);
 
         SetSortCommand = new RelayCommand(p =>
@@ -139,7 +142,21 @@ public sealed class LibraryViewModel : ObservableObject
         }
     }
 
-    public string SortLabel => SortOptions.First(o => o.Field == _sortField).Label;
+    public string SortLabel => (_favoritesOnly ? "Favorites · " : "") + SortOptions.First(o => o.Field == _sortField).Label;
+
+    private bool _favoritesOnly;
+    /// <summary>Only songs with a heart, and the albums they're on (Sort menu, Favorites).</summary>
+    public bool FavoritesOnly
+    {
+        get => _favoritesOnly;
+        set
+        {
+            if (!Set(ref _favoritesOnly, value)) return;
+            _settings.Current.LibraryFavoritesOnly = value;
+            OnPropertyChanged(nameof(SortLabel));
+            Rebuild();
+        }
+    }
 
     public void SetSort(SortField f)
     {
@@ -389,6 +406,7 @@ public sealed class LibraryViewModel : ObservableObject
         _followAlbumKey = null;
         var source = _source;
         var genres = new HashSet<string>(_selectedGenres, StringComparer.OrdinalIgnoreCase);
+        bool favoritesOnly = _favoritesOnly;
 
         Task.Run(() =>
         {
@@ -398,6 +416,7 @@ public sealed class LibraryViewModel : ObservableObject
                 "Spotify" => all.Where(t => t.IsSpotify),
                 _ => all,
             };
+            if (favoritesOnly) filtered = filtered.Where(t => t.IsFavorite);
             // Chip counts reflect the current source (All/Local/Spotify), before genre and search filters.
             var bySource = filtered.ToList();
             var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
