@@ -292,17 +292,11 @@
                         <Border HorizontalAlignment="Left" CornerRadius="8" Background="{DynamicResource SurfaceBrush}"
                                 BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
+                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="SpotifyEngine" Content="Built-in"
+                                             IsEnabled="{Binding LibrespotAvailable}"
+                                             IsChecked="{Binding SpotifyEngine, Converter={StaticResource EqualsConv}, ConverterParameter=BuiltIn}"/>
                                 <RadioButton Style="{StaticResource SegmentRadio}" GroupName="SpotifyEngine" Content="Spotify app (default)"
                                              IsChecked="{Binding SpotifyEngine, Converter={StaticResource EqualsConv}, ConverterParameter=SpotifyApp}"/>
-                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="SpotifyEngine" IsEnabled="{Binding LibrespotAvailable}"
-                                             IsChecked="{Binding SpotifyEngine, Converter={StaticResource EqualsConv}, ConverterParameter=BuiltIn}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Built-in (librespot)"/>
-                                        <Border CornerRadius="4" Padding="5,0" Margin="8,0,0,0" Background="{DynamicResource AccentSoftBrush}">
-                                            <TextBlock Text="Experimental" FontSize="11" VerticalAlignment="Center"/>
-                                        </Border>
-                                    </StackPanel>
-                                </RadioButton>
                             </StackPanel>
                         </Border>
                         <TextBlock Text="librespot.exe not found next to Flow.exe" Style="{StaticResource Tertiary}" Margin="0,6,0,0"
