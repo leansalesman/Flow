@@ -5,9 +5,17 @@ a modern take on the classic mid-2000s iTunes feel, for local files **and** your
 
 Created by **Joseph Martinez**.
 
-**Download:** grab `Flow-win-x64.zip` from the [Releases](../../releases) page, unzip, run `Flow.exe`
-(portable and self-contained — nothing to install). Windows SmartScreen may warn because the app isn't
-code-signed: choose **More info → Run anyway**.
+## Install
+Download **`Flow-Setup-x64-<version>.exe`** from the [Releases](../../releases) page and run it. No administrator
+rights needed: Flow installs for your Windows account into `%LOCALAPPDATA%\Programs\Flow`, adds a Start menu
+shortcut (and optionally a desktop one), and appears in **Settings, Apps** (publisher Joseph Martinez) with an
+Uninstall button. To update, run the newer setup: it closes Flow, replaces it, and keeps your library and settings.
+
+Windows SmartScreen may say "Windows protected your PC" because Flow isn't code-signed: choose **More info, Run
+anyway**.
+
+Prefer no installer? `Flow-win-x64.zip` is the portable version: unzip it and run `Flow.exe` (keep `librespot.exe`
+next to it).
 
 ## Features
 - **Translucent window** — Flow draws no background of its own, so a system backdrop such as the WindHawk
@@ -100,6 +108,15 @@ background process. It is not in git; build it once before publishing:
 
 Without `librespot.exe`, Flow builds and runs as usual and the built-in engine is simply unavailable.
 See `THIRD-PARTY-NOTICES.md` for librespot's license.
+
+### Installer
+`installer\Flow.iss` builds the per-user setup with the free [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+(`winget install JRSoftware.InnoSetup --scope user`). After publishing:
+```
+powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1 -PublishDir publish
+```
+Output: `installer\Output\Flow-Setup-x64-<version>.exe`. Silent install / update:
+`Flow-Setup-x64-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS`.
 
 ### Developer options
 | Command | What it does |

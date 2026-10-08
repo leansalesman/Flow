@@ -13,3 +13,6 @@ publish/
 
 # Personal notes
 Flow Player prompt
+
+# Installer build output
+installer/Output/

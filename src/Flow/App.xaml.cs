@@ -51,6 +51,18 @@ public partial class App : Application
             RunLibraryRender(e.Args[1], e.Args.Length > 2 ? e.Args[2] : null);
             return;
         }
+        // Used by Flow-Setup: register / remove "Open with Flow" for audio files, then exit (no window).
+        if (e.Args.Length == 1 && e.Args[0] is "--register-associations" or "--unregister-associations")
+        {
+            try
+            {
+                if (e.Args[0] == "--register-associations") FileAssociations.Register();
+                else FileAssociations.Unregister();
+            }
+            catch (Exception ex) { Log(ex); }
+            Shutdown();
+            return;
+        }
         if (e.Args.Length == 2 && e.Args[0] == "--perf-switch")
         {
             base.OnStartup(e);
