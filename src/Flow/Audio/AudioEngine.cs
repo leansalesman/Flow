@@ -110,6 +110,13 @@ public sealed class AudioEngine : IDisposable
 
     public void SetNext(TrackSource? next) => _pipe.SetNext(next);
 
+    /// <summary>
+    /// Plays a live stream (built-in Spotify playback) instead of local tracks, through the same EQ, analyzer,
+    /// volume and limiter. Setting it stops local tracks; loading a local track (or Stop) clears it. Null detaches.
+    /// </summary>
+    public void SetLiveInput(LiveInput? input) => _pipe.SetLive(input);
+    public bool HasLiveInput => _pipe.HasLive;
+
     public void Play()
     {
         lock (_lock)
@@ -170,6 +177,8 @@ public sealed class AudioEngine : IDisposable
         private readonly object _sync = new();
         private readonly int _rate;
         private TrackSource? _current, _next, _outgoing;
+        private LiveInput? _liveSource;
+        private ISampleProvider? _live;      // _liveSource, resampled to the engine rate when needed
         private long _fadeTotal, _fadePos;
         private int _gapFrames;
         private float[] _tmp = new float[8192];
@@ -195,8 +204,38 @@ public sealed class AudioEngine : IDisposable
             {
                 a = _current; b = _outgoing; c = _next;
                 _current = src; _outgoing = null; _next = null; _gapFrames = 0;
+                DetachLive();
             }
             DisposeLater(a, b, c);
+        }
+
+        public bool HasLive { get { lock (_sync) return _live != null; } }
+
+        public void SetLive(LiveInput? input)
+        {
+            TrackSource? a = null, b = null, c = null;
+            lock (_sync)
+            {
+                if (ReferenceEquals(input, _liveSource)) return;
+                DetachLive();
+                if (input == null) return;
+                a = _current; b = _outgoing; c = _next;
+                _current = _outgoing = _next = null;
+                _gapFrames = 0;
+                _liveSource = input;
+                _live = input.WaveFormat.SampleRate == _rate
+                    ? input
+                    : new NAudio.Wave.SampleProviders.WdlResamplingSampleProvider(input, _rate);
+                input.Attached = true;
+            }
+            DisposeLater(a, b, c);
+        }
+
+        private void DetachLive()
+        {
+            if (_liveSource != null) _liveSource.Attached = false;
+            _liveSource = null;
+            _live = null;
         }
 
         public void SetNext(TrackSource? next)
@@ -218,6 +257,7 @@ public sealed class AudioEngine : IDisposable
             {
                 a = _current; b = _outgoing; c = _next;
                 _current = _outgoing = _next = null;
+                DetachLive();
             }
             DisposeLater(a, b, c);
         }
@@ -250,65 +290,75 @@ public sealed class AudioEngine : IDisposable
 
             lock (_sync)
             {
-                int filled = 0;
-                int guard = 0;
-                while (filled < count && guard++ < 8)
+                if (_live != null)
                 {
-                    if (_gapFrames > 0)
-                    {
-                        int n = Math.Min(_gapFrames * 2, count - filled);
-                        Array.Clear(buffer, offset + filled, n);
-                        filled += n;
-                        _gapFrames -= n / 2;
-                        continue;
-                    }
-                    if (_current == null) break;
-
-                    // Start a crossfade when the current track nears its end and the next one is ready.
-                    if (CrossfadeSeconds > 0.05 && _next != null && _outgoing == null)
-                    {
-                        var len = _current.Length;
-                        var remaining = len - _current.Position;
-                        if (len.TotalSeconds > CrossfadeSeconds * 2 && remaining.TotalSeconds <= CrossfadeSeconds)
-                        {
-                            _outgoing = _current;
-                            _fadeTotal = Math.Max(1, (long)(remaining.TotalSeconds * _rate));
-                            _fadePos = 0;
-                            _current = _next;
-                            _next = null;
-                            advancedTo = _current;
-                        }
-                    }
-
-                    int want = count - filled;
-                    int got;
-                    try { got = _current.Read(buffer, offset + filled, want); }
-                    catch { got = 0; }
-
-                    if (_outgoing != null && got > 0) MixOutgoing(buffer, offset + filled, got, toDispose);
-
-                    filled += got;
-                    if (got == 0)
-                    {
-                        // Current track finished.
-                        toDispose.Add(_current);
-                        if (_outgoing != null) { toDispose.Add(_outgoing); _outgoing = null; }
-                        if (_next != null)
-                        {
-                            _current = _next;
-                            _next = null;
-                            advancedTo = _current;
-                            if (!Gapless) _gapFrames = _rate * 4 / 10; // 400 ms pause between tracks
-                        }
-                        else
-                        {
-                            _current = null;
-                            ended = true;
-                        }
-                    }
+                    // Live stream: LiveInput never blocks and pads underruns with silence.
+                    int got = 0;
+                    try { got = _live.Read(buffer, offset, count); } catch { }
+                    if (got < count) Array.Clear(buffer, offset + got, count - got);
                 }
+                else
+                {
+                    int filled = 0;
+                    int guard = 0;
+                    while (filled < count && guard++ < 8)
+                    {
+                        if (_gapFrames > 0)
+                        {
+                            int n = Math.Min(_gapFrames * 2, count - filled);
+                            Array.Clear(buffer, offset + filled, n);
+                            filled += n;
+                            _gapFrames -= n / 2;
+                            continue;
+                        }
+                        if (_current == null) break;
 
-                if (filled < count) Array.Clear(buffer, offset + filled, count - filled);
+                        // Start a crossfade when the current track nears its end and the next one is ready.
+                        if (CrossfadeSeconds > 0.05 && _next != null && _outgoing == null)
+                        {
+                            var len = _current.Length;
+                            var remaining = len - _current.Position;
+                            if (len.TotalSeconds > CrossfadeSeconds * 2 && remaining.TotalSeconds <= CrossfadeSeconds)
+                            {
+                                _outgoing = _current;
+                                _fadeTotal = Math.Max(1, (long)(remaining.TotalSeconds * _rate));
+                                _fadePos = 0;
+                                _current = _next;
+                                _next = null;
+                                advancedTo = _current;
+                            }
+                        }
+
+                        int want = count - filled;
+                        int got;
+                        try { got = _current.Read(buffer, offset + filled, want); }
+                        catch { got = 0; }
+
+                        if (_outgoing != null && got > 0) MixOutgoing(buffer, offset + filled, got, toDispose);
+
+                        filled += got;
+                        if (got == 0)
+                        {
+                            // Current track finished.
+                            toDispose.Add(_current);
+                            if (_outgoing != null) { toDispose.Add(_outgoing); _outgoing = null; }
+                            if (_next != null)
+                            {
+                                _current = _next;
+                                _next = null;
+                                advancedTo = _current;
+                                if (!Gapless) _gapFrames = _rate * 4 / 10; // 400 ms pause between tracks
+                            }
+                            else
+                            {
+                                _current = null;
+                                ended = true;
+                            }
+                        }
+                    }
+
+                    if (filled < count) Array.Clear(buffer, offset + filled, count - filled);
+                }
             }
 
             _owner.Equalizer.Process(buffer, offset, count);
