@@ -695,6 +695,17 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         s.LastQueue = Queue.Select(t => t.Path).Take(5000).ToList();
         s.LastIndex = _index;
         s.LastPosition = PositionSeconds;
+        // Songs played from Search or "Show full album" aren't in the library; keep enough to rebuild them.
+        s.LastQueueSpotify = Queue.Take(5000)
+            .Where(t => t.IsSpotify && _library.Find(t.Path) == null)
+            .GroupBy(t => t.Path).Select(g => g.First()).Take(1000)
+            .Select(t => new SpotifyTrackDto
+            {
+                Uri = t.Path, Title = t.Title, Artist = t.Artist, AlbumArtist = t.AlbumArtist, Album = t.Album,
+                AlbumId = t.SpotifyAlbumUri?.Split(':').Last() ?? "", Year = t.Year, TrackNumber = t.TrackNumber,
+                DiscNumber = t.DiscNumber, DurationMs = (long)t.Duration.TotalMilliseconds, ArtUrl = t.ArtUrl,
+                Added = t.DateAdded, Genre = t.Genre,
+            }).ToList();
     }
 
     public void Restore()
@@ -702,6 +713,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         var s = _settings.Current;
         if (!s.ResumeOnStart || s.LastQueue.Count == 0 || s.LastIndex < 0) return;
         var paths = s.LastQueue.ToList();
+        var extra = (s.LastQueueSpotify ?? new()).GroupBy(d => d.Uri).ToDictionary(g => g.Key, g => g.First());
         int index = s.LastIndex;
         double pos = s.LastPosition;
         Task.Run(() =>
@@ -710,7 +722,9 @@ public sealed class PlaybackService : ObservableObject, IDisposable
             int newIndex = -1;
             for (int i = 0; i < paths.Count; i++)
             {
-                var t = _library.Find(paths[i]) ?? (i == index || paths.Count < 300 ? _library.GetOrRead(paths[i]) : null);
+                var t = _library.Find(paths[i])
+                        ?? (extra.TryGetValue(paths[i], out var dto) ? SpotifyService.ToTrack(dto) : null)
+                        ?? (i == index || paths.Count < 300 ? _library.GetOrRead(paths[i]) : null);
                 if (t == null) continue;
                 if (i == index) newIndex = list.Count;
                 list.Add(t);

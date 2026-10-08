@@ -33,6 +33,8 @@ public sealed class AppSettings
     public string Theme { get; set; } = "Minimal";
 
     public List<string> LastQueue { get; set; } = new();
+    /// <summary>Spotify songs in the last queue that aren't in the library (from Search / full album), so they can be restored.</summary>
+    public List<Flow.Spotify.SpotifyTrackDto> LastQueueSpotify { get; set; } = new();
     public int LastIndex { get; set; } = -1;
     public double LastPosition { get; set; }
 
