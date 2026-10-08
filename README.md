@@ -50,6 +50,19 @@ shares the contents of playlists you only follow). Flow syncs automatically ever
 **Sync now**. Genres come from Deezer's public catalog (Spotify no longer provides them to personal
 apps). The sign-in token is stored encrypted for your Windows account; **Disconnect** removes it.
 
+### Built-in playback (Experimental)
+Settings, Spotify, **Playback engine** offers **Built-in (librespot)** next to the default **Spotify app**.
+Flow then runs [librespot](https://github.com/librespot-org/librespot) as a hidden background process that signs in
+to your Spotify Premium account, appears in Spotify Connect as a device named "Flow", and streams the decoded audio
+straight into Flow. Spotify songs then get Flow's EQ, volume and visualizer, and the Spotify app doesn't need to run.
+
+- **Set up playback** opens Spotify's approval page once; librespot keeps its own sign-in in
+  `%LOCALAPPDATA%\Flow\librespot`. **Sign out of playback** deletes it.
+- Options: device name, bitrate (96 / 160 / 320 kbps), volume normalisation, start with Flow.
+- Live playback only: audio is never saved to disk (librespot's own encrypted cache is capped at 1 GB).
+- Unofficial: librespot isn't endorsed by Spotify and may stop working when Spotify changes things. Premium only.
+- `librespot.log` in `%LOCALAPPDATA%\Flow` records the engine's own messages (no tokens).
+
 ## Keyboard shortcuts
 | Key | Action |
 |---|---|

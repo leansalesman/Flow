@@ -83,6 +83,25 @@ public sealed class SettingsViewModel : ObservableObject
                 Spotify.Disconnect();
         }, () => Spotify.IsConnected);
         OpenSpotifyDashboardCommand = new RelayCommand(() => { try { Flow.Spotify.SpotifyService.OpenDashboard(); } catch { } });
+        Librespot = (System.Windows.Application.Current as App)?.Librespot;
+        SetUpLibrespotCommand = new RelayCommand(async () =>
+        {
+            if (Librespot == null) return;
+            var err = await Librespot.SetUpAsync();
+            toast(err ?? "Built-in Spotify playback is ready");
+        }, () => Librespot != null && LibrespotAvailable && Librespot.State != Flow.Spotify.LibrespotState.SigningIn);
+        SignOutLibrespotCommand = new RelayCommand(() =>
+        {
+            if (Librespot == null) return;
+            if (Views.FlowDialog.Confirm("Sign out of built-in playback?",
+                    "Flow stops its Spotify playback engine and deletes its saved sign-in. Your Spotify library in Flow stays.", "Sign out"))
+                Librespot.SignOut();
+        }, () => Librespot?.HasCredentials == true);
+        OpenLibrespotSignInCommand = new RelayCommand(() =>
+        {
+            var url = Librespot?.SignInUrl;
+            if (url != null) try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+        });
         CopyRedirectCommand = new RelayCommand(() =>
         {
             try { System.Windows.Clipboard.SetText(SpotifyRedirectUri); toast("Redirect URI copied"); } catch { }
@@ -299,6 +318,79 @@ public sealed class SettingsViewModel : ObservableObject
     public ICommand CopyRedirectCommand { get; }
 
     public string SpotifyRedirectUri => Flow.Spotify.SpotifyService.RedirectUri;
+
+    // ---- Built-in Spotify playback (librespot, experimental) ----
+
+    public Flow.Spotify.LibrespotHost? Librespot { get; }
+    public bool LibrespotAvailable => Flow.Spotify.LibrespotHost.IsAvailable;
+    public ICommand SetUpLibrespotCommand { get; }
+    public ICommand SignOutLibrespotCommand { get; }
+    public ICommand OpenLibrespotSignInCommand { get; }
+
+    /// <summary>"SpotifyApp" or "BuiltIn". Switching pauses Spotify; the next play uses the new engine.</summary>
+    public string SpotifyEngine
+    {
+        get => _settings.Current.SpotifyEngine.ToString();
+        set
+        {
+            var engine = Enum.TryParse<Flow.Services.SpotifyEngine>(value, out var e) ? e : Flow.Services.SpotifyEngine.SpotifyApp;
+            if (engine == Flow.Services.SpotifyEngine.BuiltIn && !LibrespotAvailable) engine = Flow.Services.SpotifyEngine.SpotifyApp;
+            if (engine == _settings.Current.SpotifyEngine) { OnPropertyChanged(); return; }
+            _pb.SwitchSpotifyEngine(engine);
+            _settings.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsBuiltInEngine));
+        }
+    }
+
+    public bool IsBuiltInEngine => _settings.Current.SpotifyEngine == Flow.Services.SpotifyEngine.BuiltIn;
+
+    public string LibrespotDeviceName
+    {
+        get => _settings.Current.LibrespotDeviceName;
+        set
+        {
+            var name = string.IsNullOrWhiteSpace(value) ? "Flow" : value.Trim();
+            if (name == _settings.Current.LibrespotDeviceName) return;
+            _settings.Current.LibrespotDeviceName = name;
+            _settings.Save();
+            Librespot?.ApplySettings();
+            OnPropertyChanged();
+        }
+    }
+
+    public string LibrespotBitrate
+    {
+        get => _settings.Current.LibrespotBitrate.ToString();
+        set
+        {
+            int b = int.TryParse(value, out var v) && v is 96 or 160 or 320 ? v : 320;
+            if (b == _settings.Current.LibrespotBitrate) return;
+            _settings.Current.LibrespotBitrate = b;
+            _settings.Save();
+            Librespot?.ApplySettings();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool LibrespotNormalisation
+    {
+        get => _settings.Current.LibrespotNormalisation;
+        set
+        {
+            if (value == _settings.Current.LibrespotNormalisation) return;
+            _settings.Current.LibrespotNormalisation = value;
+            _settings.Save();
+            Librespot?.ApplySettings();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool LibrespotStartWithFlow
+    {
+        get => _settings.Current.LibrespotStartWithFlow;
+        set { _settings.Current.LibrespotStartWithFlow = value; _settings.Save(); OnPropertyChanged(); }
+    }
 
     public string SpotifyClientId
     {

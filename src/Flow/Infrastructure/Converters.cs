@@ -53,7 +53,10 @@ public sealed class BoolToVisibilityConverter : IValueConverter
 public sealed class EqualsConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => string.Equals(value?.ToString(), parameter?.ToString(), StringComparison.Ordinal);
+    {
+        bool equal = string.Equals(value?.ToString(), parameter?.ToString(), StringComparison.Ordinal);
+        return targetType == typeof(Visibility) ? (equal ? Visibility.Visible : Visibility.Collapsed) : equal;
+    }
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
         if (value is not true) return Binding.DoNothing;

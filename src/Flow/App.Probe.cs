@@ -189,6 +189,7 @@ public partial class App
             Flow.MainWindow.ProbeMode = true;
             var settings = new SettingsService();
             settings.Load();
+            if (Environment.GetEnvironmentVariable("FLOW_PROBE_BUILTIN") == "1") settings.Current.SpotifyEngine = SpotifyEngine.BuiltIn;
             Theme = new ThemeService(Dispatcher, ThemeService.Parse(Environment.GetEnvironmentVariable("FLOW_THEME") ?? settings.Current.Theme));
             var library = new LibraryService(settings, settings.DataDir);
             var engine = new AudioEngine();
@@ -231,6 +232,15 @@ public partial class App
             vm.CurrentPage = AppPage.Settings;
             await Task.Delay(1500);
             Snap(window, Path.Combine(outDir, "4_settings.png"));
+
+            // Spotify card, scrolled into view (FLOW_PROBE_BUILTIN=1 shows the built-in engine options; never saved).
+            var engineLabel = FindText(window.SettingsPage, "Playback engine");
+            if (engineLabel != null)
+            {
+                engineLabel.BringIntoView(new Rect(0, -260, 10, 620));
+                await Task.Delay(800);
+                Snap(window, Path.Combine(outDir, "4b_settings_spotify.png"));
+            }
 
             // Artwork sizes: shelves, track table, playlist rows.
             vm.Library.SelectedArtist = null;
@@ -300,6 +310,18 @@ public partial class App
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         using var fs = File.Create(file);
         enc.Save(fs);
+    }
+
+    private static TextBlock? FindText(DependencyObject root, string text)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var c = VisualTreeHelper.GetChild(root, i);
+            if (c is TextBlock tb && tb.Text == text) return tb;
+            var r = FindText(c, text);
+            if (r != null) return r;
+        }
+        return null;
     }
 
     private static T? FindChild<T>(DependencyObject root) where T : DependencyObject

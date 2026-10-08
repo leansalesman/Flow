@@ -285,6 +285,86 @@
                     </CheckBox>
                     <TextBlock Style="{StaticResource Tertiary}" TextWrapping="Wrap" TextTrimming="None" Margin="0,4,0,0"
                                Text="Spotify songs play through the Spotify app on this PC (or any Spotify Connect device) and require Premium. Flow controls playback, keeps your queue and shows the visualizer."/>
+
+                    <!-- Playback engine (only once Spotify is connected) -->
+                    <StackPanel Visibility="{Binding Spotify.IsConnected, Converter={StaticResource BoolToVis}}" Margin="0,18,0,0">
+                        <TextBlock Text="Playback engine" Style="{StaticResource RowLabel}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <Border HorizontalAlignment="Left" CornerRadius="8" Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="SpotifyEngine" Content="Spotify app (default)"
+                                             IsChecked="{Binding SpotifyEngine, Converter={StaticResource EqualsConv}, ConverterParameter=SpotifyApp}"/>
+                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="SpotifyEngine" IsEnabled="{Binding LibrespotAvailable}"
+                                             IsChecked="{Binding SpotifyEngine, Converter={StaticResource EqualsConv}, ConverterParameter=BuiltIn}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Built-in (librespot)"/>
+                                        <Border CornerRadius="4" Padding="5,0" Margin="8,0,0,0" Background="{DynamicResource AccentSoftBrush}">
+                                            <TextBlock Text="Experimental" FontSize="11" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+                                </RadioButton>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="librespot.exe not found next to Flow.exe" Style="{StaticResource Tertiary}" Margin="0,6,0,0"
+                                   Visibility="{Binding LibrespotAvailable, Converter={StaticResource InverseBoolToVis}}"/>
+                        <TextBlock Style="{StaticResource Tertiary}" TextWrapping="Wrap" TextTrimming="None" Margin="0,8,0,0"
+                                   Text="Plays Spotify inside Flow without the Spotify app. Unofficial; may stop working when Spotify changes things. Premium only."/>
+
+                        <!-- Built-in engine options -->
+                        <StackPanel Margin="0,14,0,0" Visibility="{Binding IsBuiltInEngine, Converter={StaticResource BoolToVis}}">
+                            <DockPanel Margin="0,0,0,12">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource PillButton}" Command="{Binding SignOutLibrespotCommand}" Content="Sign out of playback" Margin="0,0,8,0"/>
+                                    <Button Style="{StaticResource AccentPillButton}" Command="{Binding SetUpLibrespotCommand}" Content="Set up playback"/>
+                                </StackPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Status" Style="{StaticResource RowLabel}"/>
+                                    <TextBlock Text="{Binding Librespot.StatusText}" Style="{StaticResource Tertiary}" TextWrapping="Wrap" TextTrimming="None"/>
+                                    <Button Style="{StaticResource LinkButton}" Content="Sign-in page didn't open? Open it" FontSize="12" Margin="0,2,0,0"
+                                            Command="{Binding OpenLibrespotSignInCommand}"
+                                            Visibility="{Binding Librespot.State, Converter={StaticResource EqualsConv}, ConverterParameter=SigningIn, FallbackValue=Collapsed}"/>
+                                </StackPanel>
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <TextBox DockPanel.Dock="Right" Style="{StaticResource PlainTextBox}" Width="220" Padding="10,5" VerticalAlignment="Center"
+                                         Text="{Binding LibrespotDeviceName, UpdateSourceTrigger=LostFocus}"/>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Device name" Style="{StaticResource RowLabel}"/>
+                                    <TextBlock Text="How Flow appears in Spotify Connect on your other devices" Style="{StaticResource Tertiary}"/>
+                                </StackPanel>
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <Border DockPanel.Dock="Right" CornerRadius="8" Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Style="{StaticResource SegmentRadio}" GroupName="LibrespotBitrate" Content="96"
+                                                     IsChecked="{Binding LibrespotBitrate, Converter={StaticResource EqualsConv}, ConverterParameter=96}"/>
+                                        <RadioButton Style="{StaticResource SegmentRadio}" GroupName="LibrespotBitrate" Content="160"
+                                                     IsChecked="{Binding LibrespotBitrate, Converter={StaticResource EqualsConv}, ConverterParameter=160}"/>
+                                        <RadioButton Style="{StaticResource SegmentRadio}" GroupName="LibrespotBitrate" Content="320"
+                                                     IsChecked="{Binding LibrespotBitrate, Converter={StaticResource EqualsConv}, ConverterParameter=320}"/>
+                                    </StackPanel>
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Bitrate (kbps)" Style="{StaticResource RowLabel}"/>
+                                    <TextBlock Text="Higher sounds better and uses more data" Style="{StaticResource Tertiary}"/>
+                                </StackPanel>
+                            </DockPanel>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LibrespotNormalisation}" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Volume normalisation" Style="{StaticResource RowLabel}"/>
+                                    <TextBlock Text="Plays every song at a similar loudness" Style="{StaticResource Tertiary}"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LibrespotStartWithFlow}">
+                                <StackPanel>
+                                    <TextBlock Text="Start with Flow" Style="{StaticResource RowLabel}"/>
+                                    <TextBlock Text="Keeps the Flow device ready in Spotify Connect; otherwise it starts on the first Spotify song"
+                                               Style="{StaticResource Tertiary}" TextWrapping="Wrap" TextTrimming="None"/>
+                                </StackPanel>
+                            </CheckBox>
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
