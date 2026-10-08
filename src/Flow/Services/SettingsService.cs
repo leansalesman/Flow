@@ -106,8 +106,12 @@ public sealed class SettingsService
         if (Current.EqGains is not { Length: 10 }) Current.EqGains = new double[10];
     }
 
+    /// <summary>Developer probes set this so they can never overwrite the real settings (saved place, queue…).</summary>
+    public static bool ReadOnly { get; set; }
+
     public void Save()
     {
+        if (ReadOnly) return;
         try
         {
             var tmp = _path + ".tmp";

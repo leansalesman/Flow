@@ -30,7 +30,10 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
 #if DEBUG
-        // Developer switches (Debug builds only).
+        // Developer switches (Debug builds only). They read the real settings but must never write them.
+        if (e.Args.Length > 0 && e.Args[0] is "--test-genres" or "--render-visualizers" or "--render-library" or "--test-sync"
+                or "--test-tags" or "--test-update" or "--perf-switch" or "--memory-ui" or "--memory-test")
+            SettingsService.ReadOnly = true;
         if (e.Args.Length == 2 && e.Args[0] == "--test-genres")
         {
             // Developer aid: dry-run genre lookups for a sample of the cached Spotify albums (read-only).
@@ -179,6 +182,7 @@ public partial class App : Application
             return;
         }
 
+        Flow.Spotify.SpotifyLog.Write($"Flow {UpdateService.CurrentVersion} started (pid {Environment.ProcessId}){(e.Args.Length > 0 ? " " + string.Join(' ', e.Args) : "")}");
         DispatcherUnhandledException += OnUnhandled;
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log(ex.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, ex) => { Log(ex.Exception); ex.SetObserved(); };
