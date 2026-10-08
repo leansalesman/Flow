@@ -250,6 +250,13 @@ public partial class App
                 await Task.Delay(800);
                 Snap(window, Path.Combine(outDir, "4c_settings_eq.png"));
             }
+            var updatesButton = FindText(window.SettingsPage, "Check for updates");
+            if (updatesButton != null)
+            {
+                updatesButton.BringIntoView(new Rect(0, -200, 10, 520));
+                await Task.Delay(800);
+                Snap(window, Path.Combine(outDir, "4d_settings_about.png"));
+            }
 
             // Artwork sizes: shelves, track table, playlist rows.
             vm.Library.SelectedArtist = null;

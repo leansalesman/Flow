@@ -702,7 +702,8 @@ public sealed class PlaybackService : ObservableObject, IDisposable
             .Select(SpotifyService.ToDto).ToList();
     }
 
-    public void Restore()
+    /// <param name="play">Start playing again (Flow was reopened by an update while music was playing).</param>
+    public void Restore(bool play = false)
     {
         var s = _settings.Current;
         if (!s.ResumeOnStart || s.LastQueue.Count == 0 || s.LastIndex < 0) return;
@@ -731,7 +732,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
             if (idx < 0) { idx = 0; pos = 0; }
             _originalOrder = list.ToList();
             ReplaceQueue(list);
-            _ = LoadAsync(idx, false, TimeSpan.FromSeconds(pos));
+            _ = LoadAsync(idx, play, TimeSpan.FromSeconds(pos));
         }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 

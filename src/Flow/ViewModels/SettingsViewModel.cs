@@ -144,6 +144,100 @@ public sealed class SettingsViewModel : ObservableObject
     public ObservableCollection<EqBand> EqBands { get; } = new();
     public IEnumerable<string> Presets => Equalizer.Presets.Keys;
 
+    // ---- Updates (About) ----
+
+    private FlowUpdate? _update;
+    private bool _checkingUpdate, _downloadingUpdate;
+
+    public ICommand CheckUpdatesCommand => _checkUpdatesCommand ??= new RelayCommand(async () => await CheckUpdatesAsync(),
+        () => !_checkingUpdate && !_downloadingUpdate);
+    public ICommand InstallUpdateCommand => _installUpdateCommand ??= new RelayCommand(async () => await InstallUpdateAsync(),
+        () => _update != null && !_downloadingUpdate);
+    public ICommand OpenReleaseNotesCommand => _openNotesCommand ??= new RelayCommand(() =>
+    {
+        var url = _update?.NotesUrl ?? "https://github.com/leansalesman/Flow/releases";
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+    });
+    private ICommand? _checkUpdatesCommand, _installUpdateCommand, _openNotesCommand;
+
+    public bool IsUpdateAvailable => _update != null;
+
+    private string _updateStatus = "";
+    public string UpdateStatus { get => _updateStatus; private set => Set(ref _updateStatus, value); }
+
+    private double _updateProgress;
+    public double UpdateProgress { get => _updateProgress; private set => Set(ref _updateProgress, value); }
+    public bool IsDownloadingUpdate => _downloadingUpdate;
+
+    public bool AutoCheckUpdates
+    {
+        get => _settings.Current.AutoCheckUpdates;
+        set { _settings.Current.AutoCheckUpdates = value; _settings.Save(); OnPropertyChanged(); }
+    }
+
+    /// <summary>Called by the daily check when it finds a newer Flow.</summary>
+    public void ShowAvailableUpdate(FlowUpdate update)
+    {
+        _update = update;
+        UpdateStatus = $"Flow {update.Version} is available (you have {UpdateService.CurrentVersion}).";
+        OnPropertyChanged(nameof(IsUpdateAvailable));
+    }
+
+    private async Task CheckUpdatesAsync()
+    {
+        var app = System.Windows.Application.Current as App;
+        if (app == null) return;
+        _checkingUpdate = true;
+        UpdateStatus = "Checking for updates…";
+        try
+        {
+            var update = await app.Updates.CheckAsync();
+            _settings.Current.LastUpdateCheck = DateTime.Now;
+            _settings.Save();
+            if (update == null)
+            {
+                _update = null;
+                OnPropertyChanged(nameof(IsUpdateAvailable));
+                UpdateStatus = $"You're up to date (Flow {UpdateService.CurrentVersion}).";
+            }
+            else ShowAvailableUpdate(update);
+        }
+        catch (Exception ex)
+        {
+            DiagLog.Write("Update check failed: " + ex.Message);
+            UpdateStatus = "Couldn't reach GitHub to check for updates. Try again later.";
+        }
+        finally { _checkingUpdate = false; System.Windows.Input.CommandManager.InvalidateRequerySuggested(); }
+    }
+
+    /// <summary>Downloads and verifies the setup, starts it silently, then closes Flow; the setup reopens Flow.</summary>
+    private async Task InstallUpdateAsync()
+    {
+        var app = System.Windows.Application.Current as App;
+        if (_update == null || app == null) return;
+        if (string.IsNullOrEmpty(_update.SetupUrl)) { OpenReleaseNotesCommand.Execute(null); return; }
+        _downloadingUpdate = true;
+        OnPropertyChanged(nameof(IsDownloadingUpdate));
+        UpdateStatus = $"Downloading Flow {_update.Version}…";
+        try
+        {
+            var progress = new Progress<double>(p => UpdateProgress = p);
+            var setup = await app.Updates.DownloadAsync(_update, progress);
+            UpdateStatus = "Installing… Flow will reopen in a moment.";
+            UpdateService.StartInstall(setup, resume: _pb.IsPlaying);
+            await Task.Delay(400);
+            (System.Windows.Application.Current.MainWindow as MainWindow)?.ExitApp();
+        }
+        catch (Exception ex)
+        {
+            DiagLog.Write("Update failed: " + ex.Message);
+            UpdateStatus = "Update failed: " + ex.Message;
+            _downloadingUpdate = false;
+            OnPropertyChanged(nameof(IsDownloadingUpdate));
+            System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
     public string Version =>
         "Flow " + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0") + "  ·  Windows 11 x64";
 

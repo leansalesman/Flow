@@ -24,6 +24,8 @@ public partial class App : Application
     public ThemeService Theme { get; private set; } = null!;
     /// <summary>Built-in Spotify playback engine (librespot), when this run of Flow has one.</summary>
     public LibrespotHost? Librespot { get; private set; }
+    /// <summary>Checks GitHub Releases for newer versions and installs them (Settings, About).</summary>
+    public UpdateService Updates { get; } = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -61,6 +63,35 @@ public partial class App : Application
             }
             catch (Exception ex) { Log(ex); }
             Shutdown();
+            return;
+        }
+        // Developer test: check GitHub, download and verify the latest setup (never installs), log the result.
+        if (e.Args.Length == 2 && e.Args[0] == "--test-update")
+        {
+            var log = e.Args[1];
+            _ = Task.Run(async () =>
+            {
+                var lines = new List<string> { $"current {UpdateService.CurrentVersion}" };
+                File.WriteAllLines(log, lines);
+                try
+                {
+                    var u = new UpdateService();
+                    lines.Add("check (normal): " + ((await u.CheckAsync())?.Version.ToString() ?? "up to date"));
+                    File.WriteAllLines(log, lines);
+                    var latest = await u.CheckAsync(force: true);
+                    lines.Add($"latest {latest?.Version} {latest?.SetupName} {latest?.Size} sha256={latest?.Sha256}");
+                    if (latest != null)
+                    {
+                        double last = 0;
+                        var path = await u.DownloadAsync(latest, new Progress<double>(p => last = p));
+                        lines.Add($"downloaded + verified: {path} ({new FileInfo(path).Length} bytes, progress {last:P0})");
+                        File.Delete(path);
+                    }
+                }
+                catch (Exception ex) { lines.Add("FAILED: " + ex.Message); }
+                File.WriteAllLines(log, lines);
+                Dispatcher.Invoke(Shutdown);
+            });
             return;
         }
         if (e.Args.Length == 2 && e.Args[0] == "--perf-switch")
@@ -153,7 +184,7 @@ public partial class App : Application
         }
         else
         {
-            _playback.Restore();
+            _playback.Restore(play: e.Args.Contains("--resume"));
             if (_library.Count == 0 && _settings.Current.MusicFolders.Count == 0 && !_settings.Current.LastQueue.Any())
                 _vm.ShowToast("Welcome to Flow — add a music folder or drop files here to begin");
         }
@@ -164,6 +195,7 @@ public partial class App : Application
         {
             settle.Stop();
             Flow.Infrastructure.MemoryTrim.Request(Dispatcher, force: true);
+            _ = DailyUpdateCheckAsync();
             // Built-in Spotify engine set to start with Flow (otherwise it starts on the first Spotify play).
             if (_settings.Current.SpotifyEngine == SpotifyEngine.BuiltIn && _settings.Current.LibrespotStartWithFlow)
                 _ = Librespot?.EnsureRunningAsync();
@@ -200,6 +232,23 @@ public partial class App : Application
         bool append = (DateTime.UtcNow - _lastExternalOpen).TotalSeconds < 3 && _playback.HasTrack;
         _lastExternalOpen = DateTime.UtcNow;
         _playback.PlayFiles(files, append);
+    }
+
+    /// <summary>At most once a day, quietly look for a newer Flow; say so if there is one (installing is the user's call).</summary>
+    private async Task DailyUpdateCheckAsync()
+    {
+        var s = _settings.Current;
+        if (!s.AutoCheckUpdates || (s.LastUpdateCheck is { } last && (DateTime.Now - last).TotalHours < 20)) return;
+        try
+        {
+            var update = await Updates.CheckAsync();
+            s.LastUpdateCheck = DateTime.Now;
+            _settings.Save();
+            if (update == null) return;
+            _vm?.Settings.ShowAvailableUpdate(update);
+            _vm?.ShowToast($"Flow {update.Version} is available. Install it from Settings, About.");
+        }
+        catch (Exception ex) { Flow.Infrastructure.DiagLog.Write("Update check failed: " + ex.Message); }
     }
 
     public void SaveAll()

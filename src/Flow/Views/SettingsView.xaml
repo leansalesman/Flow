@@ -504,6 +504,31 @@
                                Text="{Binding SupportedFormats, StringFormat=Formats: {0}}"/>
                     <TextBlock Style="{StaticResource Tertiary}" TextWrapping="Wrap" Margin="0,6,0,0"
                                Text="Shortcuts: Space play/pause · ←/→ seek · Ctrl+←/→ previous/next · ↑/↓ volume · M mute · Ctrl+S shuffle · Ctrl+R repeat · Ctrl+F search · Ctrl+L library · Ctrl+O open · hold ⏮/⏭ to scrub"/>
+                    <!-- Updates -->
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <Button Style="{StaticResource PillButton}" Command="{Binding CheckUpdatesCommand}" Margin="0,0,8,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE895;" Style="{StaticResource Glyph}" FontSize="12" Margin="0,0,8,0"/>
+                                <TextBlock Text="Check for updates"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource AccentPillButton}" Command="{Binding InstallUpdateCommand}" Content="Update now" Margin="0,0,8,0"
+                                Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVis}}"/>
+                        <Button Style="{StaticResource LinkButton}" Content="What's new" FontSize="13" Command="{Binding OpenReleaseNotesCommand}"
+                                Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding UpdateStatus}" Style="{StaticResource Tertiary}" TextWrapping="Wrap" TextTrimming="None" Margin="2,8,0,0"
+                               Visibility="{Binding UpdateStatus, Converter={StaticResource BoolToVis}}"/>
+                    <ProgressBar Height="4" Maximum="1" Value="{Binding UpdateProgress, Mode=OneWay}" Margin="2,8,0,0" MaxWidth="360" HorizontalAlignment="Left" Width="360"
+                                 Foreground="{DynamicResource AccentBrush}" Background="{DynamicResource SurfaceStrongBrush}" BorderThickness="0"
+                                 Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVis}}"/>
+                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding AutoCheckUpdates}" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Check for updates automatically" Style="{StaticResource RowLabel}"/>
+                            <TextBlock Text="Once a day; Flow lets you know when a new version is out. Nothing installs without your OK."
+                                       Style="{StaticResource Tertiary}" TextWrapping="Wrap" TextTrimming="None"/>
+                        </StackPanel>
+                    </CheckBox>
                     <Button Style="{StaticResource PillButton}" HorizontalAlignment="Left" Margin="0,14,0,0"
                             Command="{Binding OpenDataFolderCommand}" Content="Open data folder"/>
                 </StackPanel>

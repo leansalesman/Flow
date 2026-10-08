@@ -261,7 +261,8 @@ public partial class MainWindow : Window
         Application.Current.Shutdown();
     }
 
-    private void ExitApp()
+    /// <summary>Closes Flow for real (not to the tray), saving state; used by the tray menu and the updater.</summary>
+    internal void ExitApp()
     {
         _reallyClose = true;
         Close();

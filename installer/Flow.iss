@@ -70,11 +70,23 @@ Name: "{autodesktop}\Flow"; Filename: "{app}\Flow.exe"; WorkingDir: "{app}"; Tas
 ; Flow registers "Open with" itself, the same way its Settings toggle does.
 Filename: "{app}\Flow.exe"; Parameters: "--register-associations"; Tasks: fileassoc; Flags: runhidden waituntilterminated
 Filename: "{app}\Flow.exe"; Description: "Open Flow"; Flags: nowait postinstall skipifsilent
+; In-app updates (Settings, Check for updates) run setup silently with /RELAUNCH=1 [/RESUME=1] to reopen Flow.
+Filename: "{app}\Flow.exe"; Parameters: "{code:RelaunchArgs}"; Flags: nowait; Check: ShouldRelaunch
 
 [UninstallRun]
 Filename: "{app}\Flow.exe"; Parameters: "--unregister-associations"; Flags: runhidden waituntilterminated; RunOnceId: "FlowUnregisterAssociations"
 
 [Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;
+
+function RelaunchArgs(Param: String): String;
+begin
+  if ExpandConstant('{param:RESUME|0}') = '1' then Result := '--resume' else Result := '';
+end;
+
 // Before installing or updating: ask Flow to close (it saves its state), then make sure Flow and librespot are gone.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var

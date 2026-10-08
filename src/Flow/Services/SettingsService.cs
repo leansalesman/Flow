@@ -31,6 +31,9 @@ public sealed class AppSettings
     public bool FadeChromeWhilePlaying { get; set; } = true;
     /// <summary>Appearance: "Minimal" (translucent), "Dark", "Light", "Auto" or "Metal" (Brushed Metal).</summary>
     public string Theme { get; set; } = "Minimal";
+    /// <summary>Check GitHub for a newer Flow once a day (Settings, About).</summary>
+    public bool AutoCheckUpdates { get; set; } = true;
+    public DateTime? LastUpdateCheck { get; set; }
 
     public List<string> LastQueue { get; set; } = new();
     /// <summary>Spotify songs in the last queue that aren't in the library (from Search / full album), so they can be restored.</summary>
