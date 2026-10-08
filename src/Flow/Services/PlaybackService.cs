@@ -597,6 +597,20 @@ public sealed class PlaybackService : ObservableObject, IDisposable
     {
         _ui.BeginInvoke(DispatcherPriority.Background, SaveStateToDisk);   // after the new song's index is set
         CurrentTrack = track;
+        LoadArt(track);
+    }
+
+    /// <summary>Shows the current song's cover again (after its details or artwork were edited).</summary>
+    public void ReloadArt()
+    {
+        if (CurrentTrack is not { } track) return;
+        CurrentArt = null;
+        CurrentArtPath = null;
+        LoadArt(track);
+    }
+
+    private void LoadArt(Track track)
+    {
         var key = track.ArtKey;
         Task.Run(() =>
         {

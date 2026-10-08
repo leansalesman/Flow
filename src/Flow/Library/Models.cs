@@ -126,9 +126,12 @@ public sealed class AlbumInfo
         TotalDuration = TimeSpan.FromTicks(Tracks.Sum(t => t.Duration.Ticks));
         PlayCount = Tracks.Sum(t => t.PlayCount);
         IsSpotify = Tracks.All(t => t.IsSpotify);
+        IsLocal = Tracks.All(t => !t.IsSpotify);
     }
 
     public bool IsSpotify { get; }
+    /// <summary>Every song is a local file, so its details and cover can be edited.</summary>
+    public bool IsLocal { get; }
     /// <summary>The complete Spotify tracklist was fetched for this album ("Show full album").</summary>
     public bool IsFullAlbum { get; init; }
 

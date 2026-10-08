@@ -103,6 +103,20 @@ public sealed class ArtworkCache
         catch { }
     }
 
+    /// <summary>Replaces an album's cached cover with a picture the user chose (Choose cover artwork).</summary>
+    public void ReplaceCover(string key, byte[] data)
+    {
+        if (string.IsNullOrEmpty(key)) return;
+        lock (_lock) { _missing.Remove(key); _largeTried.Remove(key); }
+        try { File.Delete(LargePath(key)); } catch { }
+        try { File.Delete(ThumbPath(key)); } catch { }
+        lock (_thumbLock)
+        {
+            if (_thumbIndex.Remove(key, out var node)) _thumbLru.Remove(node);
+        }
+        TrySave(key, data);
+    }
+
     public void ResetMissing()
     {
         lock (_lock) _missing.Clear();

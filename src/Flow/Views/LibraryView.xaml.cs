@@ -87,6 +87,17 @@ public partial class LibraryView : UserControl
 
     private void AddFolder_Click(object sender, RoutedEventArgs e) => Main?.Settings.AddFolder();
 
+    // Album spotlight, local albums only (the buttons are hidden for Spotify albums).
+    private void EditAlbum_Click(object sender, RoutedEventArgs e)
+    {
+        if (Main != null && Lib?.SelectedAlbum is { IsLocal: true } a) LocalEdits.EditAlbum(Main, a.Tracks);
+    }
+
+    private void ChooseCover_Click(object sender, RoutedEventArgs e)
+    {
+        if (Main != null && Lib?.SelectedAlbum is { IsLocal: true } a) LocalEdits.ChooseCover(Main, a.Tracks);
+    }
+
     // ---- Sort menu ----
 
     private void SortButton_Click(object sender, RoutedEventArgs e)

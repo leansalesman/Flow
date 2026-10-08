@@ -326,6 +326,84 @@ public sealed class LibraryService : IDisposable
         return t;
     }
 
+    // ---- Editing local songs (Edit info, Edit album, Choose cover artwork) ----------------------
+
+    /// <summary>
+    /// Writes new details into local files and updates the library right away (queues and Now Playing follow,
+    /// since they share the same Track objects). Spotify songs are skipped. Returns "Song: reason" for each
+    /// file that couldn't be changed.
+    /// </summary>
+    public async Task<List<string>> EditAsync(IReadOnlyList<TrackEdit> edits)
+    {
+        await _scanGate.WaitAsync();
+        try
+        {
+            return await Task.Run(() =>
+            {
+                var failed = new List<string>();
+                var done = new List<string>();
+                foreach (var e in edits)
+                {
+                    var t = Find(e.Path);
+                    if (t == null || t.IsSpotify) continue;
+                    var err = TagWriter.Apply(e);
+                    if (err != null) failed.Add($"{t.Title}: {err}");
+                    else done.Add(e.Path);
+                }
+                Reread(done);
+                return failed;
+            });
+        }
+        finally { _scanGate.Release(); }
+    }
+
+    /// <summary>Embeds a cover (JPEG) into the songs' files and shows it for their albums.</summary>
+    public async Task<List<string>> SetCoverAsync(IReadOnlyList<Track> tracks, byte[] jpeg)
+    {
+        var local = tracks.Where(t => !t.IsSpotify).ToList();
+        await _scanGate.WaitAsync();
+        try
+        {
+            return await Task.Run(() =>
+            {
+                var failed = new List<string>();
+                var done = new List<string>();
+                foreach (var t in local)
+                {
+                    var err = TagWriter.SetCover(t.Path, jpeg);
+                    if (err != null) failed.Add($"{t.Title}: {err}");
+                    else done.Add(t.Path);
+                }
+                foreach (var key in local.Select(t => t.ArtKey).Distinct()) Art.ReplaceCover(key, jpeg);
+                Reread(done);
+                return failed;
+            });
+        }
+        finally { _scanGate.Release(); }
+    }
+
+    /// <summary>Reads changed files again, keeping each song's identity, date added and play stats.</summary>
+    private void Reread(List<string> paths)
+    {
+        if (paths.Count == 0) return;
+        var batch = new List<Track>();
+        foreach (var p in paths)
+        {
+            var existing = Find(p);
+            var t = ReadTrack(p, new FileInfo(p), extractArt: true);
+            if (existing != null)
+            {
+                t.Id = existing.Id;
+                t.DateAdded = existing.DateAdded;
+                t.PlayCount = existing.PlayCount;
+                t.LastPlayed = existing.LastPlayed;
+                t.IsFavorite = existing.IsFavorite;
+            }
+            batch.Add(t);
+        }
+        Commit(batch);
+    }
+
     private static double? Valid(double v) => double.IsNaN(v) || double.IsInfinity(v) ? null : v;
 
     // ---- Watching ---------------------------------------------------------------------

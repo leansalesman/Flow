@@ -597,6 +597,21 @@
                             </StackPanel>
                         </Button>
                     </StackPanel>
+                    <!-- Local albums: edit details and track order, or choose a cover (never for Spotify albums) -->
+                    <WrapPanel Margin="0,10,0,0" Visibility="{Binding SelectedAlbum.IsLocal, Converter={StaticResource BoolToVis}}">
+                        <Button Style="{StaticResource PillButton}" Click="EditAlbum_Click" Margin="0,0,8,0" ToolTip="Edit the album's details and track order">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE70F;" Style="{StaticResource Glyph}" FontSize="12" Margin="0,0,8,0"/>
+                                <TextBlock Text="Edit album"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource PillButton}" Click="ChooseCover_Click" ToolTip="Choose cover artwork (JPG, PNG or WebP)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xEB9F;" Style="{StaticResource Glyph}" FontSize="12" Margin="0,0,8,0"/>
+                                <TextBlock Text="Cover art"/>
+                            </StackPanel>
+                        </Button>
+                    </WrapPanel>
                     <!-- Spotify albums: fetch the complete tracklist (songs not in the library become playable here) -->
                     <Button Style="{StaticResource PillButton}" HorizontalAlignment="Left" Margin="0,10,0,0"
                             Command="{Binding ShowFullAlbumCommand}" ToolTip="Show every song on this album from Spotify"

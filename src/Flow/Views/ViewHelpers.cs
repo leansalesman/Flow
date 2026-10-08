@@ -70,6 +70,9 @@ public static class TrackMenu
             }));
         }
 
+        // Local files only: rename, edit info, edit album, choose cover artwork.
+        foreach (var m in LocalEdits.MenuItems(vm, list)) menu.Items.Add(m);
+
         if (extra.Length > 0)
         {
             menu.Items.Add(new Separator());
@@ -207,6 +210,11 @@ public static class DragReorder
 /// <summary>Small themed prompt / confirm dialogs.</summary>
 public static class FlowDialog
 {
+#if DEBUG
+    /// <summary>--test-tags: positions and snapshots forms off-screen instead of showing them.</summary>
+    internal static Action<Window>? ProbeHook;
+#endif
+
     public static string? Prompt(string title, string message, string initial)
     {
         string? result = null;
@@ -226,7 +234,23 @@ public static class FlowDialog
         return result;
     }
 
-    private static Window Build(string title, string message, UIElement? input, string okText, Action<bool> done)
+    /// <summary>
+    /// A themed form: <paramref name="body"/> under the title. <paramref name="onSave"/> runs on Save and keeps the
+    /// dialog open by returning false (e.g. after showing a validation message). Returns true when saved.
+    /// </summary>
+    public static bool ShowForm(string title, string message, UIElement body, string okText, Func<bool> onSave)
+    {
+        bool saved = false;
+        var w = Build(title, message, body, okText, ok => { if (ok) saved = true; }, () => onSave());
+#if DEBUG
+        ProbeHook?.Invoke(w);
+#endif
+        w.ShowDialog();
+        return saved;
+    }
+
+    private static Window Build(string title, string message, UIElement? input, string okText, Action<bool> done,
+                                Func<bool>? canClose = null)
     {
         var w = new Window
         {
@@ -236,16 +260,18 @@ public static class FlowDialog
             ResizeMode = ResizeMode.NoResize,
             SizeToContent = SizeToContent.WidthAndHeight,
             ShowInTaskbar = false,
-            Owner = Application.Current.MainWindow,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Title = title,
         };
+        if (Application.Current.MainWindow is { IsVisible: true } owner && !ReferenceEquals(owner, w)) w.Owner = owner;
+        else w.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         w.SetResourceReference(Window.FontFamilyProperty, "UiFont");
         w.SetResourceReference(Window.ForegroundProperty, "TextPrimaryBrush");
 
         var stack = new StackPanel { Margin = new Thickness(24, 20, 24, 20), MinWidth = 340 };
         stack.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold });
-        var msg = new TextBlock { Text = message, Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 380 };
+        var msg = new TextBlock { Text = message, Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 380,
+                                  Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible };
         msg.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
         stack.Children.Add(msg);
         if (input != null) stack.Children.Add(input);
@@ -256,7 +282,12 @@ public static class FlowDialog
         var ok = new Button { Content = okText, IsDefault = true, MinWidth = 90 };
         ok.SetResourceReference(FrameworkElement.StyleProperty, "AccentPillButton");
         cancel.Click += (_, _) => { done(false); w.Close(); };
-        ok.Click += (_, _) => { done(true); w.Close(); };
+        ok.Click += (_, _) =>
+        {
+            if (canClose != null && !canClose()) return;
+            done(true);
+            w.Close();
+        };
         buttons.Children.Add(cancel);
         buttons.Children.Add(ok);
         stack.Children.Add(buttons);

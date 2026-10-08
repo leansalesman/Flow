@@ -69,6 +69,12 @@ public partial class App : Application
             return;
         }
 #if DEBUG
+        if (e.Args.Length >= 2 && e.Args[0] == "--test-tags")
+        {
+            base.OnStartup(e);
+            RunTagProbe(e.Args[1], e.Args.Length > 2 ? e.Args[2] : null);
+            return;
+        }
         if (e.Args.Length == 2 && e.Args[0] == "--test-sync")
         {
             var outFile = e.Args[1];

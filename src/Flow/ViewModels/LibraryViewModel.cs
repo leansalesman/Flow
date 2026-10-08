@@ -360,6 +360,15 @@ public sealed class LibraryViewModel : ObservableObject
     private bool _isLibraryEmpty = true;
     public bool IsLibraryEmpty { get => _isLibraryEmpty; private set => Set(ref _isLibraryEmpty, value); }
 
+    private string? _followAlbumKey;
+
+    /// <summary>Rebuilds now and keeps the album spotlight on this album (its key after an edit).</summary>
+    public void RefreshAfterEdit(string? albumKey)
+    {
+        if (_selectedAlbum != null && albumKey != null) _followAlbumKey = albumKey;
+        Rebuild();
+    }
+
     public void ScheduleRebuild(int ms)
     {
         _rebuildTimer.Stop();
@@ -375,7 +384,9 @@ public sealed class LibraryViewModel : ObservableObject
         var field = _sortField;
         bool desc = _sortDescending;
         var art = _lib.Art;
-        string? openAlbumKey = _selectedAlbum?.Key;
+        // After an album edit its key can change (new name or artist): follow it to the edited album.
+        string? openAlbumKey = _followAlbumKey ?? _selectedAlbum?.Key;
+        _followAlbumKey = null;
         var source = _source;
         var genres = new HashSet<string>(_selectedGenres, StringComparer.OrdinalIgnoreCase);
 
