@@ -18,6 +18,9 @@ public static class VisualizerPreview
     {
         Directory.CreateDirectory(outDir);
         const double W = 1200, H = 560, Art = 300;
+        static Color VizColor(int i, Color fallback) =>
+            Environment.GetEnvironmentVariable("FLOW_VIZ_COLORS")?.Split(',') is { Length: 2 } c
+                ? (Color)ColorConverter.ConvertFromString(c[i]) : fallback;
         var analyzer = new SpectrumAnalyzer { SampleRate = 48000 };
         var rng = new Random(3);
         double phase = 0;
@@ -30,8 +33,9 @@ public static class VisualizerPreview
                 Analyzer = analyzer,
                 IsActive = true,
                 ArtSize = Art,
-                BlockColor = Color.FromRgb(0x9A, 0xA4, 0xB8),
-                PeakColor = Color.FromRgb(0xE6, 0xEC, 0xF5),
+                // FLOW_VIZ_COLORS="#block,#peak" previews a theme's colors.
+                BlockColor = VizColor(0, Color.FromRgb(0x9A, 0xA4, 0xB8)),
+                PeakColor = VizColor(1, Color.FromRgb(0xE6, 0xEC, 0xF5)),
                 VisualStyle = style,
                 ArtElement = art,
             };

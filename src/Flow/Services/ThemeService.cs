@@ -116,6 +116,9 @@ public sealed class ThemeService
         var r = Application.Current.Resources;
         r["AccentColor"] = Accent;
         r["AccentLightColor"] = AccentLight;
+        // Visualizer blocks follow the accent; a theme may give them their own color (after this).
+        r["VisualizerColor"] = Accent;
+        r["VisualizerPeakColor"] = AccentLight;
         r["AccentBrush"] = Frozen(Accent);
         r["AccentLightBrush"] = Frozen(AccentLight);
         r["AccentDarkBrush"] = Frozen(AccentDark);
@@ -323,6 +326,9 @@ public sealed class ThemeService
         r["NowPlayingLcdBrush"] = lcd;
         r["NowPlayingLcdStrokeBrush"] = lcdStroke;
         r["NowPlayingLcdPadding"] = new Thickness(22, 14, 22, 12);
+        // The visualizer glows in the LCD's pale green, as if lit by the same display.
+        r["VisualizerColor"] = Color.FromRgb(0xCE, 0xDB, 0x9A);
+        r["VisualizerPeakColor"] = Color.FromRgb(0xF2, 0xF6, 0xD8);
 
         // Glossy graphite buttons: a lit upper half with a sharp edge, like smoked glass.
         var gloss = Gradient(90, (0, Color.FromRgb(0x72, 0x76, 0x7E)), (0.46, Color.FromRgb(0x4E, 0x52, 0x59)),

@@ -67,8 +67,8 @@
                                      IsActive="{Binding Playback.IsPlaying}"
                                      VisualStyle="{Binding VisualizerStyle}"
                                      ArtElement="{Binding ElementName=ArtHost}"
-                                     BlockColor="{DynamicResource AccentColor}"
-                                     PeakColor="{DynamicResource AccentLightColor}"/>
+                                     BlockColor="{DynamicResource VisualizerColor}"
+                                     PeakColor="{DynamicResource VisualizerPeakColor}"/>
                 <Grid x:Name="ArtHost" Width="300" Height="300" HorizontalAlignment="Center" VerticalAlignment="Center"
                       MouseWheel="Art_MouseWheel" Background="Transparent" ToolTip="Scroll to change volume">
                     <!-- BitmapCache: the soft shadow is blurred once, not on every frame around it. -->
