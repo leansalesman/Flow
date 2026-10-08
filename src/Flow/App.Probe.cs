@@ -311,6 +311,20 @@ public partial class App
                 await Task.Delay(2500);
                 Snap(window, Path.Combine(outDir, $"7_playlist_{size}.png"));
             }
+
+            // Search page: a real (read-only) Spotify search, then open the first album found.
+            vm.CurrentPage = AppPage.Search;
+            vm.Search.Query = Environment.GetEnvironmentVariable("FLOW_PROBE_SEARCH") ?? "aphex twin";
+            await Task.Delay(5000);
+            Snap(window, Path.Combine(outDir, "10_search.png"));
+            var firstAlbum = vm.Search.Albums.FirstOrDefault();
+            if (firstAlbum != null)
+            {
+                vm.Search.OpenAlbumCommand.Execute(firstAlbum);
+                await Task.Delay(5000);
+                Snap(window, Path.Combine(outDir, "10b_search_album.png"));
+                vm.Library.SelectedAlbum = null;
+            }
             File.WriteAllText(Path.Combine(outDir, "state.txt"),
                 $"artist={name}\nafter Back: artistOverlay={vm.Library.ShowArtistOverlay} albumOpen={vm.Library.IsAlbumOpen}\n" +
                 $"albums={vm.Library.SelectedArtist?.Albums.Count} appearsOn={vm.Library.SelectedArtist?.AppearsOn.Count} songs={vm.Library.SelectedArtist?.Tracks.Count}");

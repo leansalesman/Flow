@@ -7,7 +7,7 @@ using Microsoft.Win32;
 
 namespace Flow.ViewModels;
 
-public enum AppPage { NowPlaying, Library, Playlists, Settings }
+public enum AppPage { NowPlaying, Library, Playlists, Search, Settings }
 
 public sealed class MainViewModel : ObservableObject
 {
@@ -23,6 +23,13 @@ public sealed class MainViewModel : ObservableObject
         _settingsRef = settings;
         Library = new LibraryViewModel(library, playback, settings, ui, spotify);
         Playlists = new PlaylistsViewModel(library, playback, ui, ShowToast, () => spotify.Cache.Playlists, settings);
+        Search = new SearchViewModel(spotify, playback, library, album =>
+        {
+            // Albums found on Spotify open in the Library's album spotlight.
+            CurrentPage = AppPage.Library;
+            Library.SelectedArtist = null;
+            Library.SelectedAlbum = album;
+        }, ui);
         Settings = new SettingsViewModel(settings, library, playback, spotify, ShowToast);
         playback.Notify += ShowToast;
         spotify.LibraryImported += () => ui.BeginInvoke(() =>
@@ -78,6 +85,7 @@ public sealed class MainViewModel : ObservableObject
     public Flow.Spotify.SpotifyService Spotify { get; }
     public LibraryViewModel Library { get; }
     public PlaylistsViewModel Playlists { get; }
+    public SearchViewModel Search { get; }
     public SettingsViewModel Settings { get; }
 
     public ICommand PlayPauseCommand { get; }

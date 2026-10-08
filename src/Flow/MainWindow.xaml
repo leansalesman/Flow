@@ -80,6 +80,8 @@
                              IsChecked="{Binding CurrentPage, Converter={StaticResource EqualsConv}, ConverterParameter=Library}"/>
                 <RadioButton Style="{StaticResource RailButton}" GroupName="Nav" Content="&#xE90B;" ToolTip="Playlists"
                              IsChecked="{Binding CurrentPage, Converter={StaticResource EqualsConv}, ConverterParameter=Playlists}"/>
+                <RadioButton Style="{StaticResource RailButton}" GroupName="Nav" Content="&#xE721;" ToolTip="Search Spotify"
+                             IsChecked="{Binding CurrentPage, Converter={StaticResource EqualsConv}, ConverterParameter=Search}"/>
             </StackPanel>
             <StackPanel Grid.Row="2" HorizontalAlignment="Center">
                 <Button Style="{StaticResource IconButton}" Width="48" Height="44" FontSize="17" Content="&#xE8E5;"
@@ -102,6 +104,7 @@
                 <views:NowPlayingView x:Name="NowPlayingPage"/>
                 <views:LibraryView x:Name="LibraryPage" Visibility="Collapsed"/>
                 <views:PlaylistsView x:Name="PlaylistsPage" Visibility="Collapsed"/>
+                <views:SearchView x:Name="SearchPage" Visibility="Collapsed"/>
                 <views:SettingsView x:Name="SettingsPage" Visibility="Collapsed"/>
             </Grid>
             <views:MiniPlayer x:Name="PlayerBar" Grid.Row="1"

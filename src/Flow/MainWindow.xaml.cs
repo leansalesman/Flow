@@ -304,6 +304,7 @@ public partial class MainWindow : Window
     {
         AppPage.Library => LibraryPage,
         AppPage.Playlists => PlaylistsPage,
+        AppPage.Search => SearchPage,
         AppPage.Settings => SettingsPage,
         _ => NowPlayingPage,
     };
