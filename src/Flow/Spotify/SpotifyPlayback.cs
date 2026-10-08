@@ -134,6 +134,9 @@ public sealed class SpotifyPlayback
         _poll.Interval = TimeSpan.FromMilliseconds(OnBuiltInDevice ? 3000 : 1000);
         if (OnBuiltInDevice) Anchor(startMs, flush: true);
 
+        _deviceId = device;
+        _albumUri = albumUri;
+        _pendingSeekMs = -1;
         object body = albumUri != null
             ? new { context_uri = albumUri, offset = new { uri = uris[0] }, position_ms = startMs }
             : new { uris = uris.ToArray(), position_ms = startMs };
@@ -236,6 +239,13 @@ public sealed class SpotifyPlayback
         _progressAt = DateTime.UtcNow;
         SetPlaying(true);
         _lastCommand = DateTime.UtcNow;
+        if (_pendingSeekMs >= 0 && OnBuiltInDevice)
+        {
+            // Seeked while paused (built-in engine): start again from the chosen spot.
+            long ms = _pendingSeekMs;
+            _pendingSeekMs = -1;
+            return await ReplayAtAsync(ms);
+        }
         var r = await _api.SendAsync(HttpMethod.Put, "/me/player/play");
         return r.Ok;
     }
@@ -243,11 +253,38 @@ public sealed class SpotifyPlayback
     public async Task SeekAsync(double seconds)
     {
         if (!Active) return;
-        if (OnBuiltInDevice) Anchor((long)(seconds * 1000), flush: true);
         _progressMs = (long)(seconds * 1000);
         _progressAt = DateTime.UtcNow;
         _lastCommand = DateTime.UtcNow;
+        if (OnBuiltInDevice)
+        {
+            // librespot v0.8 drops the Web API's seek command, so the built-in engine seeks by playing the
+            // current song again from the new position (the same command that starts songs, which it honours).
+            Anchor(_progressMs, flush: true);
+            if (_playing) await ReplayAtAsync(_progressMs);
+            else _pendingSeekMs = _progressMs;   // applied on resume
+            return;
+        }
         await _api.SendAsync(HttpMethod.Put, $"/me/player/seek?position_ms={_progressMs}");
+    }
+
+    private string? _deviceId, _albumUri;
+    private long _pendingSeekMs = -1;
+
+    /// <summary>Built-in engine: restarts the current song (in its album run) at the given position.</summary>
+    private async Task<bool> ReplayAtAsync(long ms)
+    {
+        if (_lastUri == null || _deviceId == null) return false;
+        object body = _albumUri != null
+            ? new { context_uri = _albumUri, offset = new { uri = _lastUri }, position_ms = ms }
+            : new { uris = _run.SkipWhile(u => u != _lastUri).ToArray(), position_ms = ms };
+        Anchor(ms, flush: true);
+        _lastCommand = DateTime.UtcNow;
+        var r = await _api.SendAsync(HttpMethod.Put, $"/me/player/play?device_id={_deviceId}", body);
+        Anchor(ms, flush: true);   // drop what the old position sent while the command was on its way
+        _lastCommand = DateTime.UtcNow;
+        if (!r.Ok) SpotifyLog.Write($"Seek (replay at {ms / 1000.0:0.0}s): {(int)r.Status} {Short(r)}");
+        return r.Ok;
     }
 
     public void SetVolume(double volume01)
@@ -346,6 +383,7 @@ public sealed class SpotifyPlayback
         SpotifyLog.Write($"Transfer to {device.Name}: {(int)r.Status} {Short(r)}");
         if (!r.Ok) return $"Spotify couldn't move playback to {device.Name}.";
         DeviceName = device.Name;
+        _deviceId = device.Id;
         _deviceIsComputer = device.Type == "Computer";
         bool wasBuiltIn = OnBuiltInDevice;
         OnBuiltInDevice = BuiltIn && string.Equals(device.Name, BuiltInName, StringComparison.OrdinalIgnoreCase);
