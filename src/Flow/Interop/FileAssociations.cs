@@ -18,6 +18,23 @@ public static class FileAssociations
         return v != null && Environment.ProcessPath != null && v.Contains(Environment.ProcessPath, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// If "Open with Flow" is registered for a Flow.exe in another folder (Flow was moved), points it at this one.
+    /// </summary>
+    public static void RefreshIfMoved()
+    {
+        try
+        {
+            using var k = Registry.CurrentUser.OpenSubKey($@"Software\Classes\{ProgId}\shell\open\command");
+            var v = k?.GetValue(null) as string;
+            if (v == null || Environment.ProcessPath == null) return;
+            if (v.Contains(Environment.ProcessPath, StringComparison.OrdinalIgnoreCase)) return;
+            if (!v.Contains("Flow.exe", StringComparison.OrdinalIgnoreCase)) return;
+            Register();
+        }
+        catch { /* best effort */ }
+    }
+
     public static void Register()
     {
         var exe = Environment.ProcessPath ?? throw new InvalidOperationException("Unknown executable path");

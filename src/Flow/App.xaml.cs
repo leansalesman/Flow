@@ -129,6 +129,7 @@ public partial class App : Application
         try { spotify.LoadCache(); } catch (Exception ex) { Log(ex); }
         _vm.Playlists.LoadEntries();
         _library.RefreshWatchers();
+        Flow.Interop.FileAssociations.RefreshIfMoved();   // keep "Open with Flow" pointing here if Flow was moved
         _ = _library.ScanAsync();
         if (spotify.SyncIsDue) _ = spotify.SyncAsync();
 
