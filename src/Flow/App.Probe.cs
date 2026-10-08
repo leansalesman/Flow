@@ -190,6 +190,8 @@ public partial class App
             var settings = new SettingsService();
             settings.Load();
             if (Environment.GetEnvironmentVariable("FLOW_PROBE_BUILTIN") == "1") settings.Current.SpotifyEngine = SpotifyEngine.BuiltIn;
+            // A visible EQ curve for checking the sliders (in memory only; the probe never saves).
+            if (Environment.GetEnvironmentVariable("FLOW_PROBE_EQ") == "1") settings.Current.EqGains = new double[] { 5, 4, 1, 0, -2, 1, 0, 1, 4, 5 };
             Theme = new ThemeService(Dispatcher, ThemeService.Parse(Environment.GetEnvironmentVariable("FLOW_THEME") ?? settings.Current.Theme));
             var library = new LibraryService(settings, settings.DataDir);
             var engine = new AudioEngine();
@@ -240,6 +242,13 @@ public partial class App
                 engineLabel.BringIntoView(new Rect(0, -260, 10, 620));
                 await Task.Delay(800);
                 Snap(window, Path.Combine(outDir, "4b_settings_spotify.png"));
+            }
+            var eqLabel = FindText(window.SettingsPage, "Equalizer");
+            if (eqLabel != null)
+            {
+                eqLabel.BringIntoView(new Rect(0, -40, 10, 420));
+                await Task.Delay(800);
+                Snap(window, Path.Combine(outDir, "4c_settings_eq.png"));
             }
 
             // Artwork sizes: shelves, track table, playlist rows.

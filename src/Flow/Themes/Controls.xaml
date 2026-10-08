@@ -529,7 +529,7 @@
                 <ControlTemplate TargetType="Slider">
                     <Grid Background="Transparent">
                         <Border Height="1" Background="{DynamicResource StrokeBrush}" VerticalAlignment="Center" Margin="-4,0"/>
-                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                        <Track x:Name="PART_Track">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource SliderRepeatFillV}"/>
                             </Track.DecreaseRepeatButton>
