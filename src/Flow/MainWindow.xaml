@@ -113,8 +113,6 @@
 
         <!-- Custom title bar -->
         <Grid x:Name="TitleBar" Grid.ColumnSpan="2" Height="40" VerticalAlignment="Top">
-            <TextBlock x:Name="TitleText" Text="Flow" Margin="68,0,0,0" VerticalAlignment="Center" FontSize="12"
-                       Foreground="{DynamicResource TextTertiaryBrush}" IsHitTestVisible="False"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
                 <Button x:Name="MinButton" Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimize"
                         WindowChrome.IsHitTestVisibleInChrome="True" Click="MinButton_Click"/>
