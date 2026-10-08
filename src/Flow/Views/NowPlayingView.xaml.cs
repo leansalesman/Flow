@@ -102,9 +102,37 @@ public partial class NowPlayingView : UserControl
     private void Art_MouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (_vm == null) return;
-        _vm.Playback.Volume += e.Delta > 0 ? 0.05 : -0.05;
+        _vm.Playback.Volume += WheelVolumeStep(e.Delta);
         _vm.ShowToast($"Volume {Math.Round(_vm.Playback.Volume * 100)}%");
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Volume change for a wheel event: 5% per mouse-wheel notch (up = louder). Touchpads send small,
+    /// non-notch deltas; with Windows' default "down motion scrolls up" (natural scrolling) their delta is the
+    /// opposite of the finger direction, so it's flipped there: fingers up = louder on both.
+    /// </summary>
+    private static DateTime _lastTouchpadDelta = DateTime.MinValue;
+
+    private static double WheelVolumeStep(int delta)
+    {
+        double step = delta / 120.0 * 0.05;
+        // A touchpad gesture can include an occasional whole notch; treat the whole gesture as touchpad.
+        if (delta % 120 != 0) _lastTouchpadDelta = DateTime.UtcNow;
+        bool touchpad = (DateTime.UtcNow - _lastTouchpadDelta).TotalMilliseconds < 500;
+        if (touchpad && TouchpadNaturalScrolling()) step = -step;
+        return step;
+    }
+
+    private static bool TouchpadNaturalScrolling()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad");
+            // 0 (the default) = "Down motion scrolls up"; 0xFFFFFFFF = "Down motion scrolls down".
+            return key?.GetValue("ScrollDirection") is not int v || v == 0;
+        }
+        catch { return true; }
     }
 
     // ---- Timeline seeking ----
