@@ -41,6 +41,8 @@ public sealed class PlaybackService : ObservableObject, IDisposable
             librespot.RemoteAudio += () =>
             {
                 // Played on the "Flow" device from another Spotify app: let it be heard unless a local song is playing.
+                // Ignore the tail of audio still arriving just after Flow stopped listening on purpose.
+                if (!_sp.BuiltIn || !librespot.IsReady || (DateTime.UtcNow - _liveDetachedAt).TotalSeconds < 4) return;
                 if (_engine.IsPlaying && !_engine.HasLiveInput) return;
                 _loopback.Stop();
                 _engine.SetLiveInput(librespot.Input);
@@ -778,8 +780,11 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         OnPropertyChanged(nameof(PlayingOnText));
     }
 
+    private DateTime _liveDetachedAt = DateTime.MinValue;
+
     private void DetachLive()
     {
+        _liveDetachedAt = DateTime.UtcNow;
         if (!_engine.HasLiveInput) return;
         _engine.SetLiveInput(null);
         _engine.Pause();
