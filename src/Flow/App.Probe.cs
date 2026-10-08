@@ -354,6 +354,14 @@ public partial class App
             mini.ProbeTogglePanel();
             await Task.Delay(900);
             Snap(mini, Path.Combine(outDir, "11c_mini_art_only.png"));
+            mini.ProbeTogglePanel();
+            foreach (var w in new[] { 190.0, 230.0, 640.0 })
+            {
+                mini.ProbeSetWidth(w);
+                mini.ProbeShowControls(true);
+                await Task.Delay(900);
+                Snap(mini, Path.Combine(outDir, $"11d_mini_{w:0}.png"));
+            }
             mini.Close();
 
             File.WriteAllText(Path.Combine(outDir, "state.txt"),

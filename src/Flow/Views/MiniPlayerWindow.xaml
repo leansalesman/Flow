@@ -3,11 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Flow.Views"
         xmlns:svc="clr-namespace:Flow.Services"
-        Title="Flow mini player" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize" UseLayoutRounding="True"
+        Title="Flow mini player" WindowStyle="None" AllowsTransparency="True" Background="#01000000"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="CanResize" UseLayoutRounding="True"
         FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextPrimaryBrush}"
         Width="316" Height="388">
-    <!-- Everything is laid out at 300 wide and scaled as one piece, so resizing grows or shrinks it evenly. -->
+    <!-- Everything is laid out at 300 wide and scaled as one piece, so resizing grows or shrinks it evenly.
+         The almost-invisible window background makes the shadow margin catch the pointer: it is the resize border. -->
     <Grid Margin="8">
         <!-- Shadow, kept off the content so the art and timeline don't redraw through an effect -->
         <Border CornerRadius="12" Background="Black" Opacity="0.55" Margin="2,4,2,0">
@@ -79,7 +80,7 @@
 
                             <!-- Center: shuffle · previous · play/pause · next · repeat -->
                             <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <ToggleButton Style="{StaticResource IconToggle}" Content="&#xE8B1;" ToolTip="Shuffle" Width="34" Height="34" FontSize="13"
+                                <ToggleButton x:Name="ShuffleToggle" Style="{StaticResource IconToggle}" Content="&#xE8B1;" ToolTip="Shuffle" Width="34" Height="34" FontSize="13"
                                               IsChecked="{Binding Playback.Shuffle}" Margin="0,0,4,0"/>
                                 <Button Style="{StaticResource IconButton}" Content="&#xE892;" FontSize="18" Width="40" Height="40"
                                         ToolTip="Previous" Click="Prev_Click"/>
@@ -88,14 +89,14 @@
                                         Content="{Binding Playback.IsPlaying, Converter={StaticResource BoolToText}, ConverterParameter='&#xE769;|&#xE768;'}"/>
                                 <Button Style="{StaticResource IconButton}" Content="&#xE893;" FontSize="18" Width="40" Height="40"
                                         ToolTip="Next" Click="Next_Click"/>
-                                <ToggleButton Style="{StaticResource IconToggle}" Width="34" Height="34" FontSize="13" Margin="4,0,0,0" ToolTip="Repeat"
+                                <ToggleButton x:Name="RepeatToggle" Style="{StaticResource IconToggle}" Width="34" Height="34" FontSize="13" Margin="4,0,0,0" ToolTip="Repeat"
                                               Content="{Binding Playback.Repeat, Converter={StaticResource RepeatGlyph}}"
                                               IsChecked="{Binding Playback.Repeat, Mode=OneWay, Converter={StaticResource RepeatActive}}"
                                               Command="{Binding RepeatCommand}"/>
                             </StackPanel>
 
                             <!-- Favorite · Up Next · volume -->
-                            <DockPanel Grid.Row="2" Margin="2,0,2,2">
+                            <DockPanel x:Name="SecondaryRow" Grid.Row="2" Margin="2,0,2,2">
                                 <ToggleButton Style="{StaticResource IconToggle}" Width="30" Height="30" FontSize="12" ToolTip="Favorite"
                                               IsChecked="{Binding Playback.CurrentTrack.IsFavorite, Mode=OneWay}"
                                               Content="{Binding Playback.CurrentTrack.IsFavorite, Converter={StaticResource BoolToText}, ConverterParameter='&#xEB52;|&#xE006;'}"
@@ -117,7 +118,7 @@
                             </DockPanel>
 
                             <!-- Timeline -->
-                            <Grid Grid.Row="3" Margin="4,0,4,2">
+                            <Grid x:Name="TimelineRow" Grid.Row="3" Margin="4,0,4,2">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="34"/>
                                     <ColumnDefinition Width="*"/>
