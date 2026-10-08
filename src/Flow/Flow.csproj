@@ -63,7 +63,11 @@
        copied next to Flow.exe, outside the single-file bundle. Builds without it are unaffected. -->
   <ItemGroup Condition="Exists('..\..\tools\librespot\librespot.exe')">
     <None Include="..\..\tools\librespot\librespot.exe" Link="librespot.exe"
-          CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFileBundle="true" />
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" />
   </ItemGroup>
+  <!-- Publishing would otherwise pack it inside the single-file Flow.exe; it has to sit next to it instead. -->
+  <Target Name="CopyLibrespotBesideFlow" AfterTargets="Publish" Condition="Exists('..\..\tools\librespot\librespot.exe')">
+    <Copy SourceFiles="..\..\tools\librespot\librespot.exe" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>
