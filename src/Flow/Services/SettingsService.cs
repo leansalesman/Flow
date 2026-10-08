@@ -29,7 +29,7 @@ public sealed class AppSettings
     public bool MinimizeToTray { get; set; }
     public bool ResumeOnStart { get; set; } = true;
     public bool FadeChromeWhilePlaying { get; set; } = true;
-    /// <summary>Appearance: "Minimal" (translucent), "Dark", "Light", "Auto" or "Metal" (Brushed Metal).</summary>
+    /// <summary>Appearance: "Minimal" (translucent), "Dark", "Light", "Auto", "Metal" (Brushed Metal) or "DarkMetal" (Dark Brushed Metal).</summary>
     public string Theme { get; set; } = "Minimal";
     /// <summary>Check GitHub for a newer Flow once a day (Settings, About).</summary>
     public bool AutoCheckUpdates { get; set; } = true;

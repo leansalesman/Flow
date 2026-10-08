@@ -157,6 +157,46 @@
                                 </Border>
                             </Grid>
                         </RadioButton>
+                        <!-- Dark Brushed Metal -->
+                        <RadioButton Style="{StaticResource ThemeTile}" Tag="Dark Brushed Metal"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EqualsConv}, ConverterParameter=DarkMetal}">
+                            <Grid>
+                                <Grid.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#FF55595F" Offset="0"/>
+                                        <GradientStop Color="#FF3B3E43" Offset="0.5"/>
+                                        <GradientStop Color="#FF2A2C30" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Grid.Background>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Top" Margin="7,8,7,0">
+                                    <Ellipse Width="13" Height="13" Stroke="#FF0C0D0F" StrokeThickness="1">
+                                        <Ellipse.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#FF72767E" Offset="0"/>
+                                                <GradientStop Color="#FF36393F" Offset="0.5"/>
+                                                <GradientStop Color="#FF484C53" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+                                    <Border Width="64" Height="15" CornerRadius="4" Margin="7,0,0,0" BorderBrush="#FF05070A" BorderThickness="1">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#FF243340" Offset="0"/>
+                                                <GradientStop Color="#FF121C26" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                </StackPanel>
+                                <Border Margin="7,30,7,7" Background="#FF191A1D" BorderBrush="#FF08080A" BorderThickness="1">
+                                    <StackPanel>
+                                        <Border Height="8" Background="#FF191A1D"/>
+                                        <Border Height="8" Background="#FF1F2125"/>
+                                        <Border Height="8" Background="#FF2C4A74"/>
+                                        <Border Height="8" Background="#FF1F2125"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </RadioButton>
                     </WrapPanel>
                 </StackPanel>
             </Border>

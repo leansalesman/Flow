@@ -18,6 +18,8 @@ public enum AppTheme
     Auto,
     /// <summary>Brushed aluminum, LCD display and glossy buttons, in the spirit of mid-2000s iTunes.</summary>
     Metal,
+    /// <summary>Brushed Metal in graphite: dark metal, a dark inset panel, a backlit display and dark glossy buttons.</summary>
+    DarkMetal,
 }
 
 /// <summary>
@@ -78,7 +80,7 @@ public sealed class ThemeService
 
         IsDark = Mode switch
         {
-            AppTheme.Dark => true,
+            AppTheme.Dark or AppTheme.DarkMetal => true,
             AppTheme.Light or AppTheme.Metal => false,
             _ => windowsDark,
         };
@@ -89,6 +91,13 @@ public sealed class ThemeService
             Accent = Color.FromRgb(0x2F, 0x74, 0xD6);
             AccentLight = Color.FromRgb(0x6F, 0xA8, 0xEE);
             AccentDark = Color.FromRgb(0x1C, 0x52, 0xA8);
+        }
+        else if (Mode == AppTheme.DarkMetal)
+        {
+            // The same aqua blue, brighter so it reads on graphite.
+            Accent = Color.FromRgb(0x5A, 0xA2, 0xF5);
+            AccentLight = Color.FromRgb(0x9C, 0xC9, 0xFA);
+            AccentDark = Color.FromRgb(0x2F, 0x74, 0xD6);
         }
         else
         {
@@ -107,6 +116,7 @@ public sealed class ThemeService
         r["OnAccentBrush"] = Frozen(Luma(Accent) > 0.6 ? Colors.Black : Colors.White);
 
         if (Mode == AppTheme.Metal) ApplyMetal(r);
+        else if (Mode == AppTheme.DarkMetal) ApplyDarkMetal(r);
         else ApplyStandard(r, solid: Mode != AppTheme.Minimal);
 
         ThemeChanged?.Invoke();
@@ -246,15 +256,84 @@ public sealed class ThemeService
         r["ArtFrameStrokeBrush"] = Frozen(Color.FromRgb(0x6A, 0x6A, 0x70));
     }
 
-    private static Brush? _metalTexture;
+    // ---- Dark Brushed Metal ----------------------------------------------------------------------
+
+    private void ApplyDarkMetal(ResourceDictionary r)
+    {
+        Color Ink(byte a) => Color.FromArgb(a, 0xFF, 0xFF, 0xFF);
+
+        r["TextPrimaryBrush"] = Frozen(Color.FromRgb(0xEE, 0xEF, 0xF1));
+        r["TextSecondaryBrush"] = Frozen(Color.FromRgb(0xB2, 0xB6, 0xBD));
+        r["TextTertiaryBrush"] = Frozen(Color.FromRgb(0x82, 0x87, 0x8F));
+        r["SurfaceBrush"] = Frozen(Ink(0x0E));
+        r["SurfaceHoverBrush"] = Frozen(Ink(0x1A));
+        r["SurfacePressedBrush"] = Frozen(Ink(0x08));
+        r["SurfaceStrongBrush"] = Frozen(Ink(0x24));
+        r["StrokeBrush"] = Frozen(Ink(0x26));
+        r["ShelfBrush"] = Frozen(Ink(0x10));
+
+        r["WindowBackgroundBrush"] = MetalTexture(dark: true);
+        r["ScrimBrush"] = r["WindowBackgroundBrush"];
+        // A soft sheen across the top edge, falling into shadow toward the bottom.
+        r["WindowShadeBrush"] = Gradient(90, (0.0, Color.FromArgb(0x38, 0xFF, 0xFF, 0xFF)), (0.08, Color.FromArgb(0x0C, 0xFF, 0xFF, 0xFF)),
+                                             (0.55, Color.FromArgb(0x00, 0x00, 0x00, 0x00)), (1.0, Color.FromArgb(0x60, 0x00, 0x00, 0x00)));
+
+        // Source list: a cool slate panel down the left.
+        r["RailBackgroundBrush"] = Gradient(0, (0, Color.FromRgb(0x2C, 0x31, 0x39)), (1, Color.FromRgb(0x24, 0x28, 0x2F)));
+        r["RailStrokeBrush"] = Frozen(Color.FromRgb(0x0B, 0x0C, 0x0E));
+        r["RailPanelMargin"] = new Thickness(8, 46, 6, 14);
+        r["RailPanelCornerRadius"] = new CornerRadius(4);
+
+        // The content area is a dark, inset panel set into the metal.
+        r["ContentPanelBrush"] = Frozen(Color.FromRgb(0x19, 0x1A, 0x1D));
+        r["ContentPanelStrokeBrush"] = Frozen(Color.FromRgb(0x08, 0x08, 0x0A));
+        r["ContentHostMargin"] = new Thickness(0, 16, 18, 4);
+
+        r["OverlayBrush"] = Frozen(Color.FromArgb(0xF4, 0x22, 0x24, 0x28));
+        r["MenuBrush"] = Frozen(Color.FromRgb(0x27, 0x29, 0x2E));
+        r["MenuStrokeBrush"] = Frozen(Ink(0x30));
+
+        // Player bar sits on the metal; its center is a backlit display (deep blue glass).
+        r["PlayerBarBrush"] = Brushes.Transparent;
+        r["PlayerBarStrokeBrush"] = Brushes.Transparent;
+        var lcd = Gradient(90, (0, Color.FromRgb(0x24, 0x33, 0x40)), (0.5, Color.FromRgb(0x1A, 0x27, 0x33)), (1, Color.FromRgb(0x12, 0x1C, 0x26)));
+        var lcdStroke = Frozen(Color.FromRgb(0x05, 0x07, 0x0A));
+        r["LcdBrush"] = lcd;
+        r["LcdStrokeBrush"] = lcdStroke;
+        r["NowPlayingLcdBrush"] = lcd;
+        r["NowPlayingLcdStrokeBrush"] = lcdStroke;
+        r["NowPlayingLcdPadding"] = new Thickness(22, 14, 22, 12);
+
+        // Glossy graphite buttons: a lit upper half with a sharp edge, like smoked glass.
+        var gloss = Gradient(90, (0, Color.FromRgb(0x72, 0x76, 0x7E)), (0.46, Color.FromRgb(0x4E, 0x52, 0x59)),
+                                 (0.5, Color.FromRgb(0x36, 0x39, 0x3F)), (1, Color.FromRgb(0x48, 0x4C, 0x53)));
+        r["PlayButtonBrush"] = gloss;
+        r["PlayButtonGlyphBrush"] = Frozen(Color.FromRgb(0xF4, 0xF5, 0xF7));
+        r["PlayButtonStrokeBrush"] = Frozen(Color.FromRgb(0x0C, 0x0D, 0x0F));
+        r["TransportBrush"] = gloss;
+        r["TransportStrokeBrush"] = Frozen(Color.FromRgb(0x10, 0x11, 0x13));
+
+        // Track lists: subtle graphite stripes, flat rows, glossy dark column headers.
+        r["RowAltBrush"] = Frozen(Color.FromRgb(0x1F, 0x21, 0x25));
+        r["RowSelectedBrush"] = Frozen(Color.FromRgb(0x2C, 0x4A, 0x74));
+        r["RowCornerRadius"] = new CornerRadius(0);
+        r["HeaderBrush"] = Gradient(90, (0, Color.FromRgb(0x3A, 0x3D, 0x43)), (0.5, Color.FromRgb(0x30, 0x33, 0x38)),
+                                        (0.52, Color.FromRgb(0x28, 0x2A, 0x2F)), (1, Color.FromRgb(0x2E, 0x31, 0x36)));
+        r["HeaderStrokeBrush"] = Frozen(Color.FromRgb(0x0E, 0x0F, 0x11));
+        r["ScrollThumbBrush"] = Gradient(0, (0, Color.FromRgb(0x7A, 0xA9, 0xE6)), (0.5, Color.FromRgb(0x4A, 0x82, 0xD2)), (1, Color.FromRgb(0x34, 0x6C, 0xC4)));
+        r["ArtFrameStrokeBrush"] = Frozen(Color.FromRgb(0x05, 0x05, 0x06));
+    }
+
+    private static Brush? _metalTexture, _darkMetalTexture;
 
     /// <summary>
     /// Brushed aluminum, generated (no image assets): fine horizontal grain made of noise smeared along
-    /// each row, with slight row-to-row variation. Tiles seamlessly.
+    /// each row, with slight row-to-row variation. Tiles seamlessly. Dark = graphite instead of silver.
     /// </summary>
-    private static Brush MetalTexture()
+    private static Brush MetalTexture(bool dark = false)
     {
-        if (_metalTexture != null) return _metalTexture;
+        if (!dark && _metalTexture != null) return _metalTexture;
+        if (dark && _darkMetalTexture != null) return _darkMetalTexture;
         const int w = 512, h = 256;
         var px = new byte[w * h * 4];
         var rnd = new Random(1979);
@@ -271,7 +350,9 @@ public sealed class ThemeService
             for (int x = 0; x < w; x++)
             {
                 float streak = sum / (2 * k + 1);
-                float v = 203 + rowShade * 9 + streak * 70 + ((float)rnd.NextDouble() - 0.5f) * 5;
+                float v = dark
+                    ? 54 + rowShade * 6 + streak * 46 + ((float)rnd.NextDouble() - 0.5f) * 4
+                    : 203 + rowShade * 9 + streak * 70 + ((float)rnd.NextDouble() - 0.5f) * 5;
                 byte b = (byte)Math.Clamp(v, 0, 255);
                 int o = (y * w + x) * 4;
                 px[o] = (byte)Math.Min(255, b + 3); // a hint of cool blue
@@ -291,7 +372,7 @@ public sealed class ThemeService
             ViewportUnits = BrushMappingMode.Absolute,
         };
         brush.Freeze();
-        return _metalTexture = brush;
+        return dark ? _darkMetalTexture = brush : _metalTexture = brush;
     }
 
     /// <summary>A frozen linear gradient; angle 90 = top→bottom, 0 = left→right.</summary>
