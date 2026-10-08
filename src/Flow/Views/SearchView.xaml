@@ -59,7 +59,6 @@
                                         <ColumnDefinition Width="2*"/>
                                         <ColumnDefinition Width="1.4*"/>
                                         <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <Grid Width="44" Height="44" Margin="0,0,14,0">
                                         <Border CornerRadius="5" Background="{DynamicResource SurfaceStrongBrush}">
@@ -92,22 +91,11 @@
                                             CommandParameter="{Binding}"/>
                                     <TextBlock Grid.Column="3" Text="{Binding Track.DurationText}" Style="{StaticResource Tertiary}"
                                                FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <!-- "+": add to Flow's library and Spotify Liked Songs (a check once it's there) -->
-                                    <Button x:Name="AddButton" Grid.Column="4" Style="{StaticResource IconButton}" Width="32" Height="32" FontSize="13"
-                                            Content="&#xE710;" ToolTip="Add to your library (and Spotify Liked Songs)"
-                                            Foreground="{DynamicResource TextSecondaryBrush}"
-                                            Command="{Binding DataContext.AddSongCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}"/>
                                 </Grid>
                             </Button>
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding IsMouseOver, ElementName=Row}" Value="True">
                                     <Setter TargetName="PlayHint" Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding InLibrary}" Value="True">
-                                    <Setter TargetName="AddButton" Property="Content" Value="&#xE73E;"/>
-                                    <Setter TargetName="AddButton" Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-                                    <Setter TargetName="AddButton" Property="ToolTip" Value="In your library"/>
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>

@@ -23,7 +23,6 @@ public sealed class SearchViewModel : ObservableObject
                            Action<string> toast, Dispatcher ui)
     {
         _toast = toast;
-        AddSongCommand = new RelayCommand(async p => { if (p is SpotifySearchSong s) await AddSongAsync(s); });
         OpenSongAlbumCommand = new RelayCommand(async p =>
         {
             // Title, artist and album links on a song open its album in the spotlight.
@@ -46,7 +45,6 @@ public sealed class SearchViewModel : ObservableObject
     public ObservableCollection<SpotifySearchAlbum> Albums { get; } = new();
     public ICommand PlaySongCommand { get; }
     public ICommand OpenAlbumCommand { get; }
-    public ICommand AddSongCommand { get; }
     public ICommand OpenSongAlbumCommand { get; }
 
     public bool IsConnected => _spotify.IsConnected;
@@ -88,22 +86,10 @@ public sealed class SearchViewModel : ObservableObject
         Songs.Clear();
         Albums.Clear();
         if (r == null) { HasResults = false; Status = "Spotify search isn't available right now. Try again in a moment."; return; }
-        var owned = OwnedLookup();
-        foreach (var s in r.Songs) Songs.Add(owned.ContainsKey(s.Track.Path) ? s with { InLibrary = true } : s);
+        foreach (var s in r.Songs) Songs.Add(s);
         foreach (var a in r.Albums) Albums.Add(a);
         HasResults = Songs.Count + Albums.Count > 0;
         Status = HasResults ? "" : $"No results for \"{q}\"";
-    }
-
-    /// <summary>"+": saves the song to Spotify Liked Songs and adds it to Flow's library.</summary>
-    private async Task AddSongAsync(SpotifySearchSong song)
-    {
-        if (song.InLibrary) return;
-        var err = await _spotify.AddToLibraryAsync(song.Track);
-        if (err != null) { _toast(err); return; }
-        int i = Songs.IndexOf(song);
-        if (i >= 0) Songs[i] = song with { InLibrary = true };
-        _toast($"Added \"{song.Track.Title}\" to your library and Spotify Liked Songs");
     }
 
     /// <summary>Plays the song; the other songs in the results follow it in the queue.</summary>
