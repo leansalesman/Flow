@@ -42,9 +42,10 @@ WizardStyle=modern
 Compression=lzma2/ultra64
 SolidCompression=yes
 LZMANumBlockThreads=4
-; Close a running Flow (and its librespot) before replacing files.
+; A running Flow is closed in PrepareToInstall below (librespot has no window, so Restart Manager can't close it
+; politely, which makes a silent update abort). Restart Manager stays as a backup for Flow.exe only.
 CloseApplications=yes
-CloseApplicationsFilter=Flow.exe,librespot.exe
+CloseApplicationsFilter=Flow.exe
 RestartApplications=no
 OutputDir=..\installer\Output
 OutputBaseFilename=Flow-Setup-x64-{#AppVersion}
@@ -74,6 +75,19 @@ Filename: "{app}\Flow.exe"; Description: "Open Flow"; Flags: nowait postinstall 
 Filename: "{app}\Flow.exe"; Parameters: "--unregister-associations"; Flags: runhidden waituntilterminated; RunOnceId: "FlowUnregisterAssociations"
 
 [Code]
+// Before installing or updating: ask Flow to close (it saves its state), then make sure Flow and librespot are gone.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM Flow.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Sleep(3000);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Flow.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM librespot.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Sleep(500);
+  Result := '';
+end;
+
 // Uninstall keeps the library, settings and Spotify sign-in (%LOCALAPPDATA%\Flow) unless the user asks to remove them.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
