@@ -32,6 +32,13 @@ public sealed class ThemeService
     private readonly Dispatcher _dispatcher;
 
     public event Action? ThemeChanged;
+
+    /// <summary>
+    /// Brushes that replace the global ones inside LCD displays (see <see cref="LcdScope"/>). Empty unless the
+    /// display's colors differ from the rest of the window (Dark Brushed Metal's pale LCD needs dark ink).
+    /// </summary>
+    public static Dictionary<string, object> LcdOverrides { get; } = new();
+    public static event Action? LcdOverridesChanged;
     public AppTheme Mode { get; private set; }
     public bool IsDark { get; private set; } = true;
     /// <summary>True when the window lets the desktop backdrop show through (Minimal).</summary>
@@ -115,10 +122,12 @@ public sealed class ThemeService
         r["AccentSoftBrush"] = Frozen(Color.FromArgb(0x40, Accent.R, Accent.G, Accent.B));
         r["OnAccentBrush"] = Frozen(Luma(Accent) > 0.6 ? Colors.Black : Colors.White);
 
+        LcdOverrides.Clear();
         if (Mode == AppTheme.Metal) ApplyMetal(r);
         else if (Mode == AppTheme.DarkMetal) ApplyDarkMetal(r);
         else ApplyStandard(r, solid: Mode != AppTheme.Minimal);
 
+        LcdOverridesChanged?.Invoke();
         ThemeChanged?.Invoke();
     }
 
@@ -293,11 +302,22 @@ public sealed class ThemeService
         r["MenuBrush"] = Frozen(Color.FromRgb(0x27, 0x29, 0x2E));
         r["MenuStrokeBrush"] = Frozen(Ink(0x30));
 
-        // Player bar sits on the metal; its center is a backlit display (deep blue glass).
+        // Player bar sits on the metal; its center is the same pale green LCD as Brushed Metal, glowing against
+        // the graphite. Inside it, text and controls use Brushed Metal's dark ink.
         r["PlayerBarBrush"] = Brushes.Transparent;
         r["PlayerBarStrokeBrush"] = Brushes.Transparent;
-        var lcd = Gradient(90, (0, Color.FromRgb(0x24, 0x33, 0x40)), (0.5, Color.FromRgb(0x1A, 0x27, 0x33)), (1, Color.FromRgb(0x12, 0x1C, 0x26)));
+        var lcd = Gradient(90, (0, Color.FromRgb(0xF4, 0xF6, 0xE6)), (0.5, Color.FromRgb(0xE8, 0xEC, 0xD3)), (1, Color.FromRgb(0xDA, 0xE0, 0xC0)));
         var lcdStroke = Frozen(Color.FromRgb(0x05, 0x07, 0x0A));
+        Color LcdInk(byte a) => Color.FromArgb(a, 0, 0, 0);
+        LcdOverrides["TextPrimaryBrush"] = Frozen(Color.FromRgb(0x14, 0x14, 0x16));
+        LcdOverrides["TextSecondaryBrush"] = Frozen(Color.FromRgb(0x40, 0x42, 0x46));
+        LcdOverrides["TextTertiaryBrush"] = Frozen(Color.FromRgb(0x6A, 0x6C, 0x70));
+        LcdOverrides["SurfaceBrush"] = Frozen(LcdInk(0x0E));
+        LcdOverrides["SurfaceHoverBrush"] = Frozen(LcdInk(0x18));
+        LcdOverrides["SurfacePressedBrush"] = Frozen(LcdInk(0x26));
+        LcdOverrides["SurfaceStrongBrush"] = Frozen(LcdInk(0x24));
+        LcdOverrides["StrokeBrush"] = Frozen(LcdInk(0x40));
+        LcdOverrides["AccentBrush"] = Frozen(Color.FromRgb(0x2F, 0x74, 0xD6));
         r["LcdBrush"] = lcd;
         r["LcdStrokeBrush"] = lcdStroke;
         r["NowPlayingLcdBrush"] = lcd;
@@ -325,6 +345,7 @@ public sealed class ThemeService
     }
 
     private static Brush? _metalTexture, _darkMetalTexture;
+
 
     /// <summary>
     /// Brushed aluminum, generated (no image assets): fine horizontal grain made of noise smeared along
@@ -391,5 +412,50 @@ public sealed class ThemeService
         var b = new SolidColorBrush(c);
         b.Freeze();
         return b;
+    }
+}
+
+/// <summary>
+/// Set <c>LcdScope.IsLcd="True"</c> on an LCD display: inside it, the theme's <see cref="ThemeService.LcdOverrides"/>
+/// replace the global brushes (DynamicResource finds the element's own resources first).
+/// </summary>
+public static class LcdScope
+{
+    public static readonly DependencyProperty IsLcdProperty = DependencyProperty.RegisterAttached(
+        "IsLcd", typeof(bool), typeof(LcdScope), new PropertyMetadata(false, OnChanged));
+
+    public static bool GetIsLcd(DependencyObject d) => (bool)d.GetValue(IsLcdProperty);
+    public static void SetIsLcd(DependencyObject d, bool value) => d.SetValue(IsLcdProperty, value);
+
+    private static readonly List<WeakReference<FrameworkElement>> Scopes = new();
+
+    static LcdScope() => ThemeService.LcdOverridesChanged += () =>
+    {
+        Scopes.RemoveAll(w => !w.TryGetTarget(out _));
+        foreach (var w in Scopes) if (w.TryGetTarget(out var e)) Apply(e);
+    };
+
+    private static void OnChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not FrameworkElement fe || e.NewValue is not true) return;
+        Scopes.Add(new WeakReference<FrameworkElement>(fe));
+        // Text that doesn't set its own color inherits it; resolve it here so it picks up the LCD's ink.
+        fe.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "TextPrimaryBrush");
+        Apply(fe);
+    }
+
+    private static readonly string[] Keys =
+    {
+        "TextPrimaryBrush", "TextSecondaryBrush", "TextTertiaryBrush", "SurfaceBrush", "SurfaceHoverBrush",
+        "SurfacePressedBrush", "SurfaceStrongBrush", "StrokeBrush", "AccentBrush",
+    };
+
+    private static void Apply(FrameworkElement e)
+    {
+        foreach (var k in Keys)
+        {
+            if (ThemeService.LcdOverrides.TryGetValue(k, out var v)) e.Resources[k] = v;
+            else e.Resources.Remove(k);
+        }
     }
 }

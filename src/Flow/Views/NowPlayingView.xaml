@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:viz="clr-namespace:Flow.Visualizer"
-             xmlns:local="clr-namespace:Flow.Views">
+             xmlns:local="clr-namespace:Flow.Views"
+             xmlns:svc="clr-namespace:Flow.Services">
     <Grid x:Name="Root" Background="Transparent">
 
         <!-- Empty state -->
@@ -91,7 +92,7 @@
             <!-- Track info + transport -->
             <StackPanel x:Name="ControlsPanel" Grid.Row="1" HorizontalAlignment="Center" Width="560" Margin="24,6,24,26">
                 <!-- Song info + timeline: an LCD panel in Brushed Metal, invisible in the other themes -->
-                <Border Background="{DynamicResource NowPlayingLcdBrush}" BorderBrush="{DynamicResource NowPlayingLcdStrokeBrush}" BorderThickness="1"
+                <Border svc:LcdScope.IsLcd="True" Background="{DynamicResource NowPlayingLcdBrush}" BorderBrush="{DynamicResource NowPlayingLcdStrokeBrush}" BorderThickness="1"
                         CornerRadius="10" Padding="{DynamicResource NowPlayingLcdPadding}" Margin="0,0,0,6"><StackPanel>
                 <TextBlock Text="{Binding Playback.CurrentTrack.Title}" FontFamily="{StaticResource DisplayFont}" FontSize="25"
                            FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis"/>

@@ -1,7 +1,8 @@
 <UserControl x:Class="Flow.Views.MiniPlayer"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:Flow.Views">
+             xmlns:local="clr-namespace:Flow.Views"
+             xmlns:svc="clr-namespace:Flow.Services">
     <!-- Classic iTunes-style player bar: transport | LCD display | options -->
     <Border Margin="14,4,14,12" Padding="14,8" CornerRadius="14"
             Background="{DynamicResource PlayerBarBrush}" BorderBrush="{DynamicResource PlayerBarStrokeBrush}" BorderThickness="1">
@@ -24,7 +25,7 @@
             </StackPanel>
 
             <!-- LCD display -->
-            <Border Grid.Column="1" MaxWidth="680" Margin="18,0" Padding="8,6,14,6" CornerRadius="10"
+            <Border Grid.Column="1" MaxWidth="680" Margin="18,0" Padding="8,6,14,6" CornerRadius="10" svc:LcdScope.IsLcd="True"
                     Background="{DynamicResource LcdBrush}" BorderBrush="{DynamicResource LcdStrokeBrush}" BorderThickness="1">
                 <Grid>
                     <Grid.ColumnDefinitions>

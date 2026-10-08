@@ -181,8 +181,8 @@
                                     <Border Width="64" Height="15" CornerRadius="4" Margin="7,0,0,0" BorderBrush="#FF05070A" BorderThickness="1">
                                         <Border.Background>
                                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                <GradientStop Color="#FF243340" Offset="0"/>
-                                                <GradientStop Color="#FF121C26" Offset="1"/>
+                                                <GradientStop Color="#FFF4F6E6" Offset="0"/>
+                                                <GradientStop Color="#FFDAE0C0" Offset="1"/>
                                             </LinearGradientBrush>
                                         </Border.Background>
                                     </Border>
