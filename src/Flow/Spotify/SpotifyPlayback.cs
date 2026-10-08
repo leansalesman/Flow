@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Windows.Threading;
 using Flow.Infrastructure;
+using Flow.Services;
 
 namespace Flow.Spotify;
 
@@ -41,20 +42,35 @@ public sealed class SpotifyPlayback
     public event Action<bool>? PlayingChanged;
     public event Action<string>? Info;
 
-    public SpotifyPlayback(SpotifyService api, Dispatcher ui)
+    private readonly SettingsService? _settings;
+    private readonly LibrespotHost? _librespot;
+    private long _anchorMs, _anchorFrames;   // built-in engine: position = anchor + frames played since
+
+    public SpotifyPlayback(SpotifyService api, Dispatcher ui, SettingsService? settings = null, LibrespotHost? librespot = null)
     {
         _api = api;
+        _settings = settings;
+        _librespot = librespot;
         _poll = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMilliseconds(1000) };
         _poll.Tick += async (_, _) => await PollAsync();
         _volumeDebounce = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMilliseconds(350) };
         _volumeDebounce.Tick += async (_, _) =>
         {
             _volumeDebounce.Stop();
-            if (_pendingVolume >= 0 && Active) await _api.SendAsync(HttpMethod.Put, $"/me/player/volume?volume_percent={_pendingVolume}");
+            // With the built-in engine Flow's own volume is the master; librespot stays at full scale.
+            if (_pendingVolume >= 0 && Active && !OnBuiltInDevice) await _api.SendAsync(HttpMethod.Put, $"/me/player/volume?volume_percent={_pendingVolume}");
         };
     }
 
     public bool Active { get; private set; }
+
+    /// <summary>Settings → Spotify → Playback engine is "Built-in (librespot)" and librespot is available.</summary>
+    public bool BuiltIn => _librespot != null && _settings?.Current.SpotifyEngine == SpotifyEngine.BuiltIn && LibrespotHost.IsAvailable;
+
+    /// <summary>The song plays on Flow's own librespot device (audio comes through Flow's engine).</summary>
+    public bool OnBuiltInDevice { get; private set; }
+
+    private string BuiltInName => string.IsNullOrWhiteSpace(_settings?.Current.LibrespotDeviceName) ? "Flow" : _settings!.Current.LibrespotDeviceName.Trim();
     /// <summary>The device picked with "Play on…"; null = whichever device Spotify has active (the default).</summary>
     public string? ChosenDeviceId { get; private set; }
     public bool IsPlaying => _playing;
@@ -66,6 +82,13 @@ public sealed class SpotifyPlayback
     {
         get
         {
+            if (OnBuiltInDevice && _librespot != null)
+            {
+                // Exact: what Flow has actually played since the last play / seek / track change.
+                long played = (_librespot.Input.FramesConsumed - _anchorFrames) * 1000 / LibrespotHost.SampleRate;
+                long pos = Math.Max(0, _anchorMs + played);
+                return (_durationMs > 0 ? Math.Min(pos, _durationMs) : pos) / 1000.0;
+            }
             long ms = _progressMs;
             if (_playing) ms += (long)(DateTime.UtcNow - _progressAt).TotalMilliseconds;
             if (_durationMs > 0) ms = Math.Min(ms, _durationMs);
@@ -102,9 +125,14 @@ public sealed class SpotifyPlayback
         if (dev == null)
         {
             SpotifyLog.Write("No device available");
-            return "No Spotify device found. Open Spotify on this PC (or any device) and try again.";
+            return BuiltIn
+                ? "Flow's built-in Spotify player isn't available yet. Check Settings, Spotify, Playback engine."
+                : "No Spotify device found. Open Spotify on this PC (or any device) and try again.";
         }
         var (device, _) = dev.Value;
+        // Slower polling when the audio comes through Flow (position is exact; the poll only follows track changes).
+        _poll.Interval = TimeSpan.FromMilliseconds(OnBuiltInDevice ? 3000 : 1000);
+        if (OnBuiltInDevice) Anchor(startMs, flush: true);
 
         object body = albumUri != null
             ? new { context_uri = albumUri, offset = new { uri = uris[0] }, position_ms = startMs }
@@ -128,7 +156,7 @@ public sealed class SpotifyPlayback
         // Verify the song really started.
         string? playingUri = r.Ok ? await WaitForStartAsync(uris[0], previousUri, startMs, gen) : null;
         if (gen != _generation) return Superseded();
-        if (playingUri == null && IsLocalDevice)
+        if (playingUri == null && IsLocalDevice && !BuiltIn)
         {
             // Last resort for this PC: ask the Spotify app to open the track itself (bypasses the cloud command).
             SpotifyLog.Write("Remote command didn't start playback - opening the track in the local Spotify app");
@@ -215,6 +243,7 @@ public sealed class SpotifyPlayback
     public async Task SeekAsync(double seconds)
     {
         if (!Active) return;
+        if (OnBuiltInDevice) Anchor((long)(seconds * 1000), flush: true);
         _progressMs = (long)(seconds * 1000);
         _progressAt = DateTime.UtcNow;
         _lastCommand = DateTime.UtcNow;
@@ -257,6 +286,19 @@ public sealed class SpotifyPlayback
 
     private async Task<(string Id, bool Active)?> EnsureDeviceAsync()
     {
+        if (BuiltIn)
+        {
+            // Built-in engine: start librespot and wait for it to appear in Spotify Connect. Never launch the app.
+            if (!await _librespot!.EnsureRunningAsync()) return null;
+            for (int i = 0; i < 15; i++)
+            {
+                var d = await PickDeviceAsync();
+                if (d != null) return d;
+                await Task.Delay(1000);
+            }
+            SpotifyLog.Write($"Built-in device \"{BuiltInName}\" did not appear in Spotify Connect");
+            return null;
+        }
         var device = await PickDeviceAsync();
         if (device != null) return device;
 
@@ -305,6 +347,9 @@ public sealed class SpotifyPlayback
         if (!r.Ok) return $"Spotify couldn't move playback to {device.Name}.";
         DeviceName = device.Name;
         _deviceIsComputer = device.Type == "Computer";
+        bool wasBuiltIn = OnBuiltInDevice;
+        OnBuiltInDevice = BuiltIn && string.Equals(device.Name, BuiltInName, StringComparison.OrdinalIgnoreCase);
+        if (OnBuiltInDevice && !wasBuiltIn) Anchor((long)(PositionSeconds * 1000), flush: true);
         _lastCommand = DateTime.UtcNow;
         return null;
     }
@@ -327,8 +372,21 @@ public sealed class SpotifyPlayback
         var list = devices.Where(d => d != null && d["is_restricted"]?.GetValue<bool>() != true && d["id"] != null).ToList();
         SpotifyLog.Write("Devices: " + string.Join(", ", list.Select(d =>
             $"{d!["name"]?.GetValue<string>()} ({d["type"]?.GetValue<string>()}{(d["is_active"]?.GetValue<bool>() == true ? ", active" : "")})")));
-        // A device picked with "Play on…" wins while it's available; otherwise Spotify's active device.
-        var pick = (ChosenDeviceId == null ? null : list.FirstOrDefault(d => d!["id"]?.GetValue<string>() == ChosenDeviceId))
+        // A device picked with "Play on…" wins while it's available; otherwise the built-in "Flow" device
+        // (built-in engine) or Spotify's active device.
+        var chosen = ChosenDeviceId == null ? null : list.FirstOrDefault(d => d!["id"]?.GetValue<string>() == ChosenDeviceId);
+        if (BuiltIn)
+        {
+            var own = list.FirstOrDefault(d => string.Equals(d!["name"]?.GetValue<string>(), BuiltInName, StringComparison.OrdinalIgnoreCase));
+            var builtInPick = chosen ?? own;
+            if (builtInPick == null) return null;
+            DeviceName = builtInPick["name"]?.GetValue<string>();
+            _deviceIsComputer = false;  // never fall back to opening the Spotify app
+            OnBuiltInDevice = ReferenceEquals(builtInPick, own);
+            return (builtInPick["id"]!.GetValue<string>(), builtInPick["is_active"]?.GetValue<bool>() == true);
+        }
+        OnBuiltInDevice = false;
+        var pick = chosen
                    ?? list.FirstOrDefault(d => d!["is_active"]?.GetValue<bool>() == true)
                    ?? list.FirstOrDefault(d => string.Equals(d!["name"]?.GetValue<string>(), Environment.MachineName, StringComparison.OrdinalIgnoreCase))
                    ?? list.FirstOrDefault(d => d!["type"]?.GetValue<string>() == "Computer")
@@ -384,6 +442,12 @@ public sealed class SpotifyPlayback
                     _pendingForeignCount = 0;
                     _lastUri = uri;
                     Update(progress, duration, playing);
+                    if (OnBuiltInDevice)
+                    {
+                        // librespot reports where it is decoding; what's audible lags by Flow's buffer.
+                        long lag = (long)(_librespot!.Input.BufferedSeconds * 1000);
+                        Anchor(Math.Max(0, progress - lag), flush: false);
+                    }
                     ItemChanged?.Invoke(uri);
                     return;
                 }
@@ -430,6 +494,14 @@ public sealed class SpotifyPlayback
         }
         catch (Exception ex) { DiagLog.Write("Spotify poll failed: " + ex.Message); }
         finally { _polling = false; }
+    }
+
+    private void Anchor(long ms, bool flush)
+    {
+        if (_librespot == null) return;
+        if (flush) _librespot.Input.Flush();
+        _anchorMs = ms;
+        _anchorFrames = _librespot.Input.FramesConsumed;
     }
 
     private void Update(long progress, long duration, bool playing)

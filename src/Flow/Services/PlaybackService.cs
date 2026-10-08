@@ -29,11 +29,24 @@ public sealed class PlaybackService : ObservableObject, IDisposable
 
     private readonly SpotifyPlayback _sp;
     private readonly LoopbackTap _loopback;
+    private readonly LibrespotHost? _librespot;
 
     public event Action<string>? Notify;
 
-    public PlaybackService(AudioEngine engine, LibraryService library, SettingsService settings, SpotifyPlayback spotify, Dispatcher ui)
+    public PlaybackService(AudioEngine engine, LibraryService library, SettingsService settings, SpotifyPlayback spotify, Dispatcher ui,
+                           LibrespotHost? librespot = null)
     {
+        _librespot = librespot;
+        if (librespot != null)
+            librespot.RemoteAudio += () =>
+            {
+                // Played on the "Flow" device from another Spotify app: let it be heard unless a local song is playing.
+                if (_engine.IsPlaying && !_engine.HasLiveInput) return;
+                _loopback.Stop();
+                _engine.SetLiveInput(librespot.Input);
+                _engine.Play();
+                SpotifyLog.Write("Audio started on the Flow device from another Spotify app; playing it");
+            };
         Instance = this;
         _engine = engine;
         _library = library;
@@ -47,6 +60,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         {
             IsPlaying = false;
             _loopback.Stop();
+            DetachLive();
             Notify?.Invoke("Spotify started playing something else, so Flow paused its queue");
         };
         _sp.Info += msg => Notify?.Invoke(msg);
@@ -274,7 +288,11 @@ public sealed class PlaybackService : ObservableObject, IDisposable
     public void Pause()
     {
         DiagLog.Write("Pause");
-        if (CurrentIsSpotify) _ = _sp.PauseAsync();
+        if (CurrentIsSpotify)
+        {
+            _ = _sp.PauseAsync();
+            if (_engine.HasLiveInput) _engine.Pause();   // built-in engine: stop Flow's output too
+        }
         else _engine.Pause();
         IsPlaying = false;
     }
@@ -737,7 +755,13 @@ public sealed class PlaybackService : ObservableObject, IDisposable
     private async Task StartSpotifyAsync(int index, double startSeconds, int token)
     {
         IsPlaying = true;
-        _loopback.Start();
+        if (_sp.BuiltIn)
+        {
+            // Built-in engine: librespot's audio plays through Flow's engine (EQ, visualizer, volume); no loopback.
+            _engine.SetLiveInput(_librespot!.Input);
+            _engine.Play();
+        }
+        else _loopback.Start();
         var err = await _sp.PlayAsync(BuildSpotifyRun(index), Queue[index].SpotifyAlbumUri, startSeconds,
             (long)Queue[index].Duration.TotalMilliseconds);
         if (token != _loadToken) return;
@@ -745,9 +769,32 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         {
             IsPlaying = false;
             _loopback.Stop();
+            DetachLive();
             Notify?.Invoke(err);
             return;
         }
+        // "Play on…" sent it to another device: nothing comes through Flow's engine.
+        if (_sp.BuiltIn && !_sp.OnBuiltInDevice) DetachLive();
+        OnPropertyChanged(nameof(PlayingOnText));
+    }
+
+    private void DetachLive()
+    {
+        if (!_engine.HasLiveInput) return;
+        _engine.SetLiveInput(null);
+        _engine.Pause();
+    }
+
+    /// <summary>Settings → Spotify → Playback engine changed: pause Spotify; the next play uses the new engine.</summary>
+    public void SwitchSpotifyEngine(SpotifyEngine engine)
+    {
+        if (CurrentIsSpotify && IsPlaying) Pause();
+        _ = _sp.DeactivateAsync(pause: true);
+        _loopback.Stop();
+        DetachLive();
+        _settings.Current.SpotifyEngine = engine;
+        if (engine == SpotifyEngine.SpotifyApp) _librespot?.Stop();
+        else if (_settings.Current.LibrespotStartWithFlow) _ = _librespot?.EnsureRunningAsync();
         OnPropertyChanged(nameof(PlayingOnText));
     }
 
@@ -756,7 +803,8 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         if (_sp.Active)
         {
             IsPlaying = true;
-            _loopback.Start();
+            if (_sp.OnBuiltInDevice && _engine.HasLiveInput) _engine.Play();
+            else if (!_sp.BuiltIn) _loopback.Start();
             if (await _sp.ResumeAsync()) return;
         }
         // Not started yet (restored session) or Spotify lost the context - start the run again here.
@@ -786,6 +834,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         if (next >= 0) { _ = LoadAsync(next, true, TimeSpan.Zero); return; }
         IsPlaying = false;
         _loopback.Stop();
+        DetachLive();
         if (Queue.Count > 0) _ = LoadAsync(0, false, TimeSpan.Zero);
     }
 

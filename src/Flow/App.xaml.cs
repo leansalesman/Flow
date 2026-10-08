@@ -22,6 +22,8 @@ public partial class App : Application
     private DispatcherTimer? _externalTimer;
 
     public ThemeService Theme { get; private set; } = null!;
+    /// <summary>Built-in Spotify playback engine (librespot), when this run of Flow has one.</summary>
+    public LibrespotHost? Librespot { get; private set; }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -115,7 +117,8 @@ public partial class App : Application
         _library = new LibraryService(_settings, _settings.DataDir);
         var engine = new AudioEngine();
         var spotify = new SpotifyService(_settings, _library);
-        _playback = new PlaybackService(engine, _library, _settings, new SpotifyPlayback(spotify, Dispatcher), Dispatcher);
+        Librespot = new LibrespotHost(_settings, Dispatcher);
+        _playback = new PlaybackService(engine, _library, _settings, new SpotifyPlayback(spotify, Dispatcher, _settings, Librespot), Dispatcher, Librespot);
         _vm = new MainViewModel(_playback, _library, _settings, spotify, Dispatcher);
 
         var window = new MainWindow(_vm, _settings, Theme);
@@ -144,7 +147,14 @@ public partial class App : Application
 
         // Startup creates a lot of short-lived data (database, Spotify cache, first layout); tidy up once it settles.
         var settle = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
-        settle.Tick += (_, _) => { settle.Stop(); Flow.Infrastructure.MemoryTrim.Request(Dispatcher, force: true); };
+        settle.Tick += (_, _) =>
+        {
+            settle.Stop();
+            Flow.Infrastructure.MemoryTrim.Request(Dispatcher, force: true);
+            // Built-in Spotify engine set to start with Flow (otherwise it starts on the first Spotify play).
+            if (_settings.Current.SpotifyEngine == SpotifyEngine.BuiltIn && _settings.Current.LibrespotStartWithFlow)
+                _ = Librespot?.EnsureRunningAsync();
+        };
         settle.Start();
 
         // Pre-build the Library and Playlists screens once the window is up, so the first visit is instant.
@@ -193,6 +203,7 @@ public partial class App : Application
     {
         SaveAll();
         try { _playback?.Dispose(); } catch { }
+        try { Librespot?.Dispose(); } catch { }
         try { _library?.Dispose(); } catch { }
         _single?.Dispose();
         base.OnExit(e);
