@@ -1,9 +1,17 @@
-# Flow — the minimal and beautiful music player
+# Flow: the minimal and beautiful music player
 
-A lightweight, translucent music player for Windows 11 (x64), built with C# / WPF on .NET 10 —
-a modern take on the classic mid-2000s iTunes feel, for local files **and** your Spotify library.
+A lightweight music player for Windows 11 (x64), built with C# / WPF on .NET 10. It brings your local music
+**and** your Spotify library onto the same album shelves, with a modern take on the classic mid-2000s iTunes
+feel: big album art, a living visualizer, an LCD-style player bar, and five looks from see-through to brushed metal.
 
 Created by **Joseph Martinez**.
+
+**At a glance**
+- Local files and Spotify in one library, one queue, one player
+- Search all of Spotify and play anything, including full albums
+- Built-in Spotify playback (no Spotify app needed) with Flow's EQ and visualizer
+- Five appearance themes, nine visualizers, adjustable artwork and text sizes
+- Free per-user installer: no admin prompt, updates in place
 
 ## Install
 Download **`Flow-Setup-x64-<version>.exe`** from the [Releases](../../releases) page and run it. No administrator
@@ -18,29 +26,45 @@ Prefer no installer? `Flow-win-x64.zip` is the portable version: unzip it and ru
 next to it).
 
 ## Features
-- **Translucent window** — Flow draws no background of its own, so a system backdrop such as the WindHawk
-  *Translucent Windows* mod shows through the whole app.
-- **Now Playing** — centered album art, timeline, Previous / Play-Pause / Next (tap to skip, **hold to
-  rewind / fast-forward**), shuffle, repeat, favorite, volume. Artist and album are links into the library.
-- **9 visualizer styles + Off** — Mirrored Blocks, Radial Ring, Mirror Mountains, Spectrum Bars,
-  Oscilloscope, Spectrogram, Block Rain, Particle Field, Bass Halo. Cycle with the button top-right
-  (right-click = previous). Uses your Windows accent colors.
-- **Library** — album-cover shelves or a sortable track table (Title, Artist, Album, Length, Year, Genre,
-  Source, Plays, Date Added); instant search; **All / Local / Spotify** filter.
-- **Genre chips** — toggle one or more genres to filter shelves and table; Play / Shuffle then use only
-  those genres.
-- **Interactive library** — click an artist for their page (albums, appears-on, all songs), an album to
-  spotlight it, a genre to filter by it.
-- **Player bar** — iTunes-style controls with an "LCD" display on every page except Now Playing.
-- **Playlists** — create, rename, reorder (drag), import/export `.m3u8`; smart lists: Favorites,
-  Recently Added, Most Played, Recently Played; Spotify playlists you own.
-- **Up Next queue** — play next, add to queue, drag to reorder.
-- **Audio** — 10-band EQ with presets, crossfade (0–12 s), gapless playback, ReplayGain (track/album).
-- **Windows integration** — media keys, Windows 11 media flyout & lock screen, taskbar thumbnail
-  buttons + progress, optional tray icon, drag & drop, single instance, optional "Open with" registration.
-- **Formats** — MP3, AAC/M4A, ALAC, FLAC, WAV, WMA, OGG Vorbis, Opus, AIFF.
-- **Lean** — covers decoded at display size with a small shared cache; memory is released when you
-  leave the library and when Flow is minimized.
+**Looks**
+- **Appearance themes** (Settings, Appearance; switch instantly): **Minimal** (translucent: a backdrop such as
+  the Windhawk *Translucent Windows* mod shows through), **Dark**, **Light**, **Automatic** (follows Windows), and
+  **Brushed Metal**, a mid-2000s homage with a brushed-aluminum window, glossy round buttons, a pale-green LCD
+  display, a blue-gray source list and striped track lists.
+- **9 visualizer styles + Off**: Mirrored Blocks, Radial Ring, Mirror Mountains, Spectrum Bars, Oscilloscope,
+  Spectrogram, Block Rain, Particle Field, Bass Halo. Cycle with the button top-right (right-click = previous).
+- **Adjustable sizes**: Small / Medium / Large album artwork in the Library and Playlists, and an **aA** text size
+  for the album spotlight, artist pages and Playlists.
+
+**Playing**
+- **Now Playing**: centered album art, timeline, Previous / Play-Pause / Next (tap to skip, hold to rewind or
+  fast-forward), shuffle, repeat, favorite, volume (scroll on the art too), **Go to album**, and **Play on another
+  device** for Spotify songs. Artist and album names are links into the library.
+- **Player bar**: iTunes-style controls with an LCD display on every page except Now Playing.
+- **Up Next queue**: play next, add to queue, drag to reorder.
+- **Audio**: 10-band EQ with presets, crossfade (0 to 12 s), gapless playback, ReplayGain (track / album).
+
+**Your music**
+- **Library**: album-cover shelves or a sortable track table (Title, Artist, Album, Length, Year, Genre, Source,
+  Plays, Date Added), instant search, and an **All / Local / Spotify** filter.
+- **Genre chips**: pick one or more genres to filter the shelves and table; Play and Shuffle follow them.
+- **Artist pages and album spotlight**: click an artist for their albums, appearances and songs; click an album for
+  a full-page spotlight with a blurred backdrop. **Show full album** fetches a Spotify album's complete tracklist.
+- **Playlists** with album covers: create, rename, reorder (drag), import / export `.m3u8`; smart lists for
+  Favorites, Recently Added, Most Played and Recently Played; your own Spotify playlists.
+- **Formats**: MP3, AAC / M4A, ALAC, FLAC, WAV, WMA, OGG Vorbis, Opus, AIFF.
+
+**Spotify** (Premium; details below)
+- Imports Liked Songs, saved albums and your playlists onto the same shelves, with genres.
+- **Search** (magnifying glass in the left rail) searches all of Spotify as you type: click a song to play it,
+  click its title, artist or album (or an album tile) to open the album in the spotlight.
+- Two playback engines: the **Spotify app**, or **Built-in** playback inside Flow.
+
+**Windows**
+- Media keys, the Windows 11 media flyout and lock screen, taskbar thumbnail buttons and progress, optional tray
+  icon, drag and drop, single instance, optional "Open with" for audio files.
+- **Lean and smooth**: covers decoded at display size with a small shared cache, pages built in the background so
+  switching screens is instant, memory released when you leave the library or minimize Flow.
 
 ## Spotify (Premium)
 Flow can import your Spotify library onto the same shelves as your local music and play it.
@@ -58,8 +82,8 @@ shares the contents of playlists you only follow). Flow syncs automatically ever
 **Sync now**. Genres come from Deezer's public catalog (Spotify no longer provides them to personal
 apps). The sign-in token is stored encrypted for your Windows account; **Disconnect** removes it.
 
-### Built-in playback (Experimental)
-Settings, Spotify, **Playback engine** offers **Built-in (librespot)** next to the default **Spotify app**.
+### Built-in playback
+Settings, Spotify, **Playback engine** offers **Built-in** next to the default **Spotify app**.
 Flow then runs [librespot](https://github.com/librespot-org/librespot) as a hidden background process that signs in
 to your Spotify Premium account, appears in Spotify Connect as a device named "Flow", and streams the decoded audio
 straight into Flow. Spotify songs then get Flow's EQ, volume and visualizer, and the Spotify app doesn't need to run.
@@ -69,6 +93,7 @@ straight into Flow. Spotify songs then get Flow's EQ, volume and visualizer, and
 - Options: device name, bitrate (96 / 160 / 320 kbps), volume normalisation, start with Flow.
 - Live playback only: audio is never saved to disk (librespot's own encrypted cache is capped at 1 GB).
 - Unofficial: librespot isn't endorsed by Spotify and may stop working when Spotify changes things. Premium only.
+- Seeking restarts the song at the new spot (librespot ignores Spotify's seek command), so expect a short blip.
 - `librespot.log` in `%LOCALAPPDATA%\Flow` records the engine's own messages (no tokens).
 
 ## Keyboard shortcuts
