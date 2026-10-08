@@ -158,7 +158,16 @@ public sealed class AlbumInfo
     public ImageSource? Thumb => _art.LoadThumb(Key);
 
     /// <summary>Album-detail artwork (shown at 260 px; decoded with headroom for high-DPI screens).</summary>
-    public ImageSource? LargeArt => _art.LoadLarge(Key, 560);
+    public ImageSource? LargeArt
+    {
+        get
+        {
+            // Spotify covers are synced small; fetch the large one the first time the album is opened.
+            if (Tracks.Count > 0 && Tracks[0].IsSpotify)
+                _art.EnsureLargeFromUrlAsync(Key, Flow.Spotify.SpotifyService.LargeArtUrl(Tracks[0].ArtUrl)).GetAwaiter().GetResult();
+            return _art.LoadLarge(Key, 560);
+        }
+    }
 }
 
 /// <summary>Everything in the library by one artist: their albums, albums they appear on, and all songs.</summary>

@@ -53,6 +53,8 @@ public sealed class SpotifyPlayback
         _librespot = librespot;
         _poll = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMilliseconds(1000) };
         _poll.Tick += async (_, _) => await PollAsync();
+        _app = new SpotifyAppWatcher(ui);
+        _app.Changed += OnAppChanged;
         _volumeDebounce = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMilliseconds(350) };
         _volumeDebounce.Tick += async (_, _) =>
         {
@@ -63,6 +65,39 @@ public sealed class SpotifyPlayback
     }
 
     public bool Active { get; private set; }
+
+    private readonly SpotifyAppWatcher _app;
+    private bool _appPollQueued;
+
+    /// <summary>
+    /// Playing in this PC's Spotify app and Windows reports its media session: changes arrive as events, so the
+    /// Web API is only asked when something changed (plus a slow safety poll).
+    /// </summary>
+    private bool UsingAppSession => !OnBuiltInDevice && IsLocalDevice && _app.Present;
+
+    private async void OnAppChanged()
+    {
+        RetunePoll();
+        if (!Active || !UsingAppSession || _appPollQueued) return;
+        _appPollQueued = true;
+        await Task.Delay(300);   // song changes arrive as several events; check once
+        _appPollQueued = false;
+        await PollAsync();
+    }
+
+    /// <summary>
+    /// Poll rate: every 3 s for the built-in engine and remote devices (position is extrapolated in between),
+    /// every 10 s when the Spotify app's media session reports changes, and every second while a song change
+    /// or the end of the run is being confirmed.
+    /// </summary>
+    private void RetunePoll()
+    {
+        int ms = !OnBuiltInDevice && UsingAppSession ? 10000 : 3000;
+        if (_pendingForeignCount > 0 || _pendingGoneCount > 0) ms = 1000;
+        else if (!OnBuiltInDevice && _durationMs > 0 && PositionSeconds * 1000 >= _durationMs - 5000) ms = 1000;
+        var interval = TimeSpan.FromMilliseconds(ms);
+        if (_poll.Interval != interval) _poll.Interval = interval;
+    }
 
     /// <summary>Settings → Spotify → Playback engine is "Built-in (librespot)" and librespot is available.</summary>
     public bool BuiltIn => _librespot != null && _settings?.Current.SpotifyEngine == SpotifyEngine.BuiltIn && LibrespotHost.IsAvailable;
@@ -130,8 +165,8 @@ public sealed class SpotifyPlayback
                 : "No Spotify device found. Open Spotify on this PC (or any device) and try again.";
         }
         var (device, _) = dev.Value;
-        // Slower polling when the audio comes through Flow (position is exact; the poll only follows track changes).
-        _poll.Interval = TimeSpan.FromMilliseconds(OnBuiltInDevice ? 3000 : 1000);
+        if (!BuiltIn) _ = _app.StartAsync();
+        RetunePoll();
         if (OnBuiltInDevice) Anchor(startMs, flush: true);
 
         _deviceId = device;
@@ -187,6 +222,7 @@ public sealed class SpotifyPlayback
         _lastCommand = DateTime.UtcNow;
         Active = true;          // before SetPlaying so listeners see an active player
         SetPlaying(true);
+        RetunePoll();
         _poll.Start();
         return null;
     }
@@ -415,6 +451,7 @@ public sealed class SpotifyPlayback
         OnBuiltInDevice = BuiltIn && string.Equals(device.Name, BuiltInName, StringComparison.OrdinalIgnoreCase);
         if (OnBuiltInDevice && !wasBuiltIn) Anchor((long)(PositionSeconds * 1000), flush: true);
         _lastCommand = DateTime.UtcNow;
+        RetunePoll();
         return null;
     }
 
@@ -557,7 +594,7 @@ public sealed class SpotifyPlayback
             Update(progress, duration, playing);
         }
         catch (Exception ex) { DiagLog.Write("Spotify poll failed: " + ex.Message); }
-        finally { _polling = false; }
+        finally { _polling = false; RetunePoll(); }
     }
 
     private void Anchor(long ms, bool flush)

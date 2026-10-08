@@ -1,3 +1,5 @@
+#if DEBUG
+// Developer aid, left out of release builds.
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -381,3 +383,4 @@ public partial class App
         return null;
     }
 }
+#endif

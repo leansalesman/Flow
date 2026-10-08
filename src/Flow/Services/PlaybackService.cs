@@ -56,6 +56,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         _ui = ui;
         _sp = spotify;
         _loopback = new LoopbackTap(engine.Analyzer, engine.SampleRate);
+        Flow.Visualizer.MusicVisualizer.AnyDrawingChanged += OnVisualizerDrawingChanged;
         _sp.ItemChanged += OnSpotifyItemChanged;
         _sp.RunEnded += OnSpotifyRunEnded;
         _sp.ForeignItem += () =>
@@ -81,7 +82,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
 
         _timer = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMilliseconds(200) };
         _timer.Tick += (_, _) => Tick();
-        _timer.Start();
+        if (_isPlaying) _timer.Start();
     }
 
     /// <summary>The app's playback service (used by small view widgets like the now-playing indicator).</summary>
@@ -148,7 +149,17 @@ public sealed class PlaybackService : ObservableObject, IDisposable
     public string? CurrentArtPath { get => _artPath; private set => Set(ref _artPath, value); }
 
     private bool _isPlaying;
-    public bool IsPlaying { get => _isPlaying; private set => Set(ref _isPlaying, value); }
+    public bool IsPlaying
+    {
+        get => _isPlaying;
+        private set
+        {
+            if (!Set(ref _isPlaying, value)) return;
+            // The position timer only runs while something plays.
+            if (value) _timer?.Start();
+            else _timer?.Stop();
+        }
+    }
 
     private double _position;
     public double PositionSeconds { get => _position; private set => Set(ref _position, value); }
@@ -577,17 +588,14 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         var key = track.ArtKey;
         Task.Run(() =>
         {
-            if (!_library.Art.Has(key))
+            if (track.IsSpotify)
+                _library.Art.EnsureLargeFromUrlAsync(key, Flow.Spotify.SpotifyService.LargeArtUrl(track.ArtUrl)).GetAwaiter().GetResult();
+            else if (!_library.Art.Has(key))
             {
-                if (track.IsSpotify)
-                    _library.Art.EnsureFromUrlAsync(key, track.ArtUrl).GetAwaiter().GetResult();
-                else
-                {
-                    using var tags = TryOpenTags(track.Path);
-                    _library.Art.Ensure(key, track.Path, tags);
-                }
+                using var tags = TryOpenTags(track.Path);
+                _library.Art.Ensure(key, track.Path, tags);
             }
-            return (img: _library.Art.LoadLarge(key), path: _library.Art.Has(key) ? _library.Art.LargePath(key) : null);
+            return (img: _library.Art.LoadLarge(key), path: _library.Art.Has(key) ? _library.Art.BestPath(key) : null);
         }).ContinueWith(t =>
         {
             if (!ReferenceEquals(CurrentTrack, track)) return;
@@ -784,7 +792,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
             _engine.SetLiveInput(_librespot!.Input);
             _engine.Play();
         }
-        else _loopback.Start();
+        else StartLoopbackIfWanted();
         var err = await _sp.PlayAsync(BuildSpotifyRun(index), Queue[index].SpotifyAlbumUri, startSeconds,
             (long)Queue[index].Duration.TotalMilliseconds);
         if (token != _loadToken) return;
@@ -799,6 +807,18 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         // "Play on…" sent it to another device: nothing comes through Flow's engine.
         if (_sp.BuiltIn && !_sp.OnBuiltInDevice) DetachLive();
         OnPropertyChanged(nameof(PlayingOnText));
+    }
+
+    /// <summary>Spotify app mode: capture the PC's audio for the visualizer only while one is on screen and not Off.</summary>
+    private void StartLoopbackIfWanted()
+    {
+        if (Flow.Visualizer.MusicVisualizer.AnyDrawing) _loopback.Start();
+    }
+
+    private void OnVisualizerDrawingChanged()
+    {
+        if (!Flow.Visualizer.MusicVisualizer.AnyDrawing) { if (_loopback.Running) _loopback.Stop(); }
+        else if (IsPlaying && CurrentIsSpotify && _sp.Active && !_sp.BuiltIn) _loopback.Start();
     }
 
     private DateTime _liveDetachedAt = DateTime.MinValue;
@@ -830,7 +850,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         {
             IsPlaying = true;
             if (_sp.OnBuiltInDevice && _engine.HasLiveInput) _engine.Play();
-            else if (!_sp.BuiltIn) _loopback.Start();
+            else if (!_sp.BuiltIn) StartLoopbackIfWanted();
             if (await _sp.ResumeAsync()) return;
         }
         // Not started yet (restored session) or Spotify lost the context - start the run again here.

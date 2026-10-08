@@ -43,6 +43,8 @@ public sealed class ArtworkCache
     public string LargePath(string key) => Path.Combine(_dir, key + ".jpg");
     public string ThumbPath(string key) => Path.Combine(_dir, key + "_t.jpg");
     public bool Has(string key) => !string.IsNullOrEmpty(key) && File.Exists(ThumbPath(key));
+    /// <summary>The biggest cached file for a cover: the large one, or the thumbnail when the source was small.</summary>
+    public string BestPath(string key) => File.Exists(LargePath(key)) ? LargePath(key) : ThumbPath(key);
 
     /// <summary>Ensures art for the key exists. Safe to call from any thread.</summary>
     public void Ensure(string key, string trackPath, TagLib.File? tagFile)
@@ -83,6 +85,24 @@ public sealed class ArtworkCache
         catch { return false; }
     }
 
+    /// <summary>
+    /// Makes sure the large cover exists, downloading it from <paramref name="url"/> when only the thumbnail is
+    /// cached (Spotify covers are synced at 300 px; the 640 px one is fetched when a big view needs it).
+    /// </summary>
+    private readonly HashSet<string> _largeTried = new();
+
+    public async Task EnsureLargeFromUrlAsync(string key, string? url)
+    {
+        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(url) || File.Exists(LargePath(key))) return;
+        lock (_lock) if (!_largeTried.Add(key)) return;   // the source may simply be small: try once per run
+        try
+        {
+            var data = await Http.GetByteArrayAsync(url).ConfigureAwait(false);
+            await Task.Run(() => TrySave(key, data)).ConfigureAwait(false);
+        }
+        catch { }
+    }
+
     public void ResetMissing()
     {
         lock (_lock) _missing.Clear();
@@ -118,8 +138,9 @@ public sealed class ArtworkCache
             if (src.Format != PixelFormats.Bgr32 && src.Format != PixelFormats.Bgra32 && src.Format != PixelFormats.Pbgra32)
                 src = new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
 
-            SaveScaled(src, 800, LargePath(key));
-            SaveScaled(src, 300, ThumbPath(key));
+            // No large copy of a small source: it would only be the thumbnail again (LoadLarge falls back to it).
+            if (Math.Max(src.PixelWidth, src.PixelHeight) > 300) SaveScaled(src, 800, LargePath(key));
+            if (!File.Exists(ThumbPath(key)) || Math.Max(src.PixelWidth, src.PixelHeight) > 300) SaveScaled(src, 300, ThumbPath(key));
             return true;
         }
         catch { return false; }
@@ -188,7 +209,8 @@ public sealed class ArtworkCache
     }
 
     /// <summary>Large artwork, decoded no bigger than needed (Now Playing / album detail).</summary>
-    public ImageSource? LoadLarge(string key, int maxPx = 720) => Load(LargePath(key), maxPx);
+    public ImageSource? LoadLarge(string key, int maxPx = 720) =>
+        string.IsNullOrEmpty(key) ? null : Load(BestPath(key), maxPx);
 
     private static ImageSource? Load(string path, int decodeWidth)
     {

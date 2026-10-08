@@ -49,6 +49,8 @@ CloseApplicationsFilter=Flow.exe
 RestartApplications=no
 OutputDir=..\installer\Output
 OutputBaseFilename=Flow-Setup-x64-{#AppVersion}
+; Every run leaves %TEMP%\Setup Log <date> #NNN.txt, so a failed or partial update can be diagnosed.
+SetupLogging=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -105,6 +107,26 @@ begin
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM librespot.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
   Sleep(500);
   Result := '';
+end;
+
+// After an in-app update (1.8.11 to 1.8.12) Settings, Apps kept showing the old version: the entry was never
+// rewritten. Write the version fields again ourselves so the Apps list always matches what was installed.
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Key: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    Key := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1';
+    StringChangeEx(Key, '{{', '{', True);
+    if RegKeyExists(HKCU, Key) then
+    begin
+      RegWriteStringValue(HKCU, Key, 'DisplayVersion', '{#AppVersion}');
+      Log('Uninstall entry version set to {#AppVersion}');
+    end
+    else
+      Log('Uninstall entry not found: ' + Key);
+  end;
 end;
 
 // Uninstall keeps the library, settings and Spotify sign-in (%LOCALAPPDATA%\Flow) unless the user asks to remove them.

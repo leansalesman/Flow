@@ -29,6 +29,8 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+#if DEBUG
+        // Developer switches (Debug builds only).
         if (e.Args.Length == 2 && e.Args[0] == "--test-genres")
         {
             // Developer aid: dry-run genre lookups for a sample of the cached Spotify albums (read-only).
@@ -53,6 +55,7 @@ public partial class App : Application
             RunLibraryRender(e.Args[1], e.Args.Length > 2 ? e.Args[2] : null);
             return;
         }
+#endif
         // Used by Flow-Setup: register / remove "Open with Flow" for audio files, then exit (no window).
         if (e.Args.Length == 1 && e.Args[0] is "--register-associations" or "--unregister-associations")
         {
@@ -63,6 +66,24 @@ public partial class App : Application
             }
             catch (Exception ex) { Log(ex); }
             Shutdown();
+            return;
+        }
+#if DEBUG
+        if (e.Args.Length == 2 && e.Args[0] == "--test-sync")
+        {
+            var outFile = e.Args[1];
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var settings = new SettingsService();
+                    var library = new LibraryService(settings, settings.DataDir);
+                    var spotify = new SpotifyService(settings, library);
+                    File.WriteAllText(outFile, await spotify.TestIncrementalSyncAsync());
+                }
+                catch (Exception ex) { File.WriteAllText(outFile, ex.ToString()); }
+                Dispatcher.Invoke(Shutdown);
+            });
             return;
         }
         // Developer test: check GitHub, download and verify the latest setup (never installs), log the result.
@@ -113,10 +134,12 @@ public partial class App : Application
             Shutdown();
             return;
         }
+#endif
         base.OnStartup(e);
         StartApp(e);
     }
 
+#if DEBUG
     /// <summary>Developer aid: dry-run genre lookups for a sample of the cached Spotify albums (read-only).</summary>
     private static async Task TestGenres(string outFile)
     {
@@ -138,6 +161,7 @@ public partial class App : Application
         lines.Insert(0, $"Found {found} of {sample.Count}");
         File.WriteAllLines(outFile, lines);
     }
+#endif
 
     private void StartApp(StartupEventArgs e)
     {

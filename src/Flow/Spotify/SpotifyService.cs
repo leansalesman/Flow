@@ -19,6 +19,15 @@ public sealed class SpotifyPlaylist
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public List<string> Uris { get; set; } = new();
+    /// <summary>Spotify's version of the playlist; unchanged = its songs don't need to be fetched again.</summary>
+    public string? SnapshotId { get; set; }
+}
+
+/// <summary>A saved album and its song URIs (for incremental sync).</summary>
+public sealed class SpotifySavedAlbum
+{
+    public string Id { get; set; } = "";
+    public List<string> Uris { get; set; } = new();
 }
 
 /// <summary>Cached import, saved to %LOCALAPPDATA%\Flow\spotify_library.json.</summary>
@@ -28,6 +37,10 @@ public sealed class SpotifyLibraryCache
     public List<SpotifyPlaylist> Playlists { get; set; } = new();
     /// <summary>"album:{id}" / "track:{uri}" → genre ("" = looked up, not found). Cached across syncs.</summary>
     public Dictionary<string, string> Genres { get; set; } = new();
+    /// <summary>Liked Songs, newest first (null = not imported with incremental sync yet).</summary>
+    public List<string>? LikedUris { get; set; }
+    /// <summary>Saved albums, newest first (null = not imported with incremental sync yet).</summary>
+    public List<SpotifySavedAlbum>? SavedAlbums { get; set; }
 }
 
 /// <summary>Spotify search results (Search page).</summary>
@@ -251,6 +264,7 @@ public sealed class SpotifyService : ObservableObject
         try { File.Delete(_tokenPath); } catch { }
         try { File.Delete(_cachePath); } catch { }
         Cache = new SpotifyLibraryCache();
+        _tracksReleased = _cacheLacksArtistIds = false;
         _library.SetSpotifyTracks(Array.Empty<Track>());
         _settings.Current.SpotifyLastSync = null;
         UserName = null;
@@ -348,12 +362,26 @@ public sealed class SpotifyService : ObservableObject
         public bool Ok => (int)Status is >= 200 and < 300;
     }
 
+    // Shared by every request: at most 6 at once, and after a 429 everyone waits out the same cooldown.
+    private readonly SemaphoreSlim _requestGate = new(6);
+    private DateTime _cooldownUntil = DateTime.MinValue;
+
     public async Task<ApiResult> SendAsync(HttpMethod method, string url, object? body = null)
     {
         if (!url.StartsWith("http", StringComparison.Ordinal)) url = "https://api.spotify.com/v1" + url;
-        bool refreshed = false;
+#if DEBUG
+        if (_fakeApi != null)
+        {
+            _fakeRequests++;
+            var fake = _fakeApi(url);
+            return new ApiResult(fake == null ? HttpStatusCode.NotFound : HttpStatusCode.OK, fake);
+        }
+#endif
+        bool refreshed = false, retried5xx = false;
         for (int attempt = 0; attempt < 4; attempt++)
         {
+            var wait = _cooldownUntil - DateTime.UtcNow;
+            if (wait > TimeSpan.Zero) await Task.Delay(wait);
             var token = await GetAccessTokenAsync(forceRefresh: false);
             if (token == null) return new ApiResult(HttpStatusCode.Unauthorized, null);
             using var req = new HttpRequestMessage(method, url);
@@ -362,8 +390,10 @@ public sealed class SpotifyService : ObservableObject
             else if (method == HttpMethod.Put || method == HttpMethod.Post) req.Content = new StringContent("", Encoding.UTF8, "application/json");
 
             HttpResponseMessage resp;
+            await _requestGate.WaitAsync();
             try { resp = await _http.SendAsync(req); }
             catch (Exception ex) when (attempt < 2) { DiagLog.Write("Spotify request failed: " + ex.Message); await Task.Delay(500); continue; }
+            finally { _requestGate.Release(); }
 
             using (resp)
             {
@@ -375,8 +405,25 @@ public sealed class SpotifyService : ObservableObject
                 }
                 if (resp.StatusCode == (HttpStatusCode)429)
                 {
-                    var wait = resp.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(2);
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(10, Math.Max(1, wait.TotalSeconds))));
+                    var limitText = await resp.Content.ReadAsStringAsync();
+                    if (limitText.Contains("QUOTA_EXCEEDED", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Spotify's quota for this app is used up: waiting a few seconds won't help.
+                        SpotifyLog.Write($"{method} {url.Replace("https://api.spotify.com/v1", "")} -> 429 quota exceeded");
+                        Status = "Spotify's request limit for this app has been reached. Try again later.";
+                        return new ApiResult((HttpStatusCode)429, null);
+                    }
+                    var retry = resp.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(2);
+                    var until = DateTime.UtcNow + TimeSpan.FromSeconds(Math.Clamp(retry.TotalSeconds, 1, 30));
+                    if (until > _cooldownUntil) _cooldownUntil = until;
+                    SpotifyLog.Write($"Rate limited: waiting {(until - DateTime.UtcNow).TotalSeconds:0} s");
+                    continue;
+                }
+                if ((int)resp.StatusCode >= 500 && method == HttpMethod.Get && !retried5xx)
+                {
+                    retried5xx = true;   // a GET is safe to repeat once
+                    await Task.Delay(800);
+                    attempt--;
                     continue;
                 }
                 var text = await resp.Content.ReadAsStringAsync();
@@ -426,14 +473,39 @@ public sealed class SpotifyService : ObservableObject
                 Cache = JsonSerializer.Deserialize<SpotifyLibraryCache>(File.ReadAllText(_cachePath)) ?? new();
         }
         catch { Cache = new(); }
+        _cacheLacksArtistIds = Cache.Tracks.Any(t => t.ArtistIds == null);
         if (IsConnected) _library.SetSpotifyTracks(Cache.Tracks.Select(ToTrack));
+        ReleaseTracks();
         RaiseState();
         if (IsConnected) _ = LoadProfileAsync();
     }
 
+    // The library keeps its own Track objects; the cache's song list is only needed while syncing, so it is
+    // dropped from memory after loading and read from disk again for the next sync.
+    private bool _tracksReleased, _cacheLacksArtistIds;
+
+    private void ReleaseTracks()
+    {
+        if (Cache.Tracks.Count == 0) return;
+        Cache.Tracks = new List<SpotifyTrackDto>();
+        _tracksReleased = true;
+    }
+
+    private void EnsureTracksLoaded()
+    {
+        if (!_tracksReleased) return;
+        _tracksReleased = false;
+        try
+        {
+            if (File.Exists(_cachePath) && JsonSerializer.Deserialize<SpotifyLibraryCache>(File.ReadAllText(_cachePath)) is { } c)
+                Cache.Tracks = c.Tracks;
+        }
+        catch (Exception ex) { App.Log(ex); }
+    }
+
     public bool SyncIsDue => IsConnected &&
         (_settings.Current.SpotifyLastSync is not DateTime d || (DateTime.Now - d).TotalHours > 12
-         || Cache.Tracks.Any(t => t.ArtistIds == null)); // older cache without artist IDs (needed for genres)
+         || _cacheLacksArtistIds); // older cache without artist IDs (needed for genres)
 
     public async Task SyncAsync()
     {
@@ -441,71 +513,16 @@ public sealed class SpotifyService : ObservableObject
         IsBusy = true;
         try
         {
+            EnsureTracksLoaded();
+            // Incremental: only what changed since the last sync (a list the cache doesn't have yet is read in
+            // full). Everything is read again when the cache lacks artist IDs (genres) or a reused song is missing.
+            bool full = Cache.Tracks.Any(t => t.ArtistIds == null);
+            var result = await ImportAsync(full);
+            if (result == null && !full) result = await ImportAsync(full: true);
+            if (result == null) throw new InvalidOperationException("Spotify's library couldn't be read completely.");
             var s = _settings.Current;
-            var byUri = new Dictionary<string, SpotifyTrackDto>();
-            var playlists = new List<SpotifyPlaylist>();
-
-            void Add(SpotifyTrackDto? t)
-            {
-                if (t == null) return;
-                if (byUri.TryGetValue(t.Uri, out var e)) { if (t.Added < e.Added) e.Added = t.Added; }
-                else byUri[t.Uri] = t;
-            }
-
-            if (s.SpotifyImportLiked)
-            {
-                Status = "Importing Liked Songs…";
-                await foreach (var it in PagesAsync("/me/tracks?limit=50"))
-                {
-                    Add(ParseTrack(it["track"], null, ParseDate(it["added_at"])));
-                    if (byUri.Count % 250 == 0) Status = $"Importing Liked Songs… {byUri.Count:N0}";
-                }
-            }
-
-            if (s.SpotifyImportAlbums)
-            {
-                Status = "Importing saved albums…";
-                await foreach (var it in PagesAsync("/me/albums?limit=50"))
-                {
-                    var album = it["album"];
-                    if (album == null) continue;
-                    var added = ParseDate(it["added_at"]);
-                    var tracks = album["tracks"];
-                    if (tracks?["items"] is JsonArray first)
-                        foreach (var t in first) Add(ParseTrack(t, album, added));
-                    var next = tracks?["next"]?.GetValue<string>();
-                    if (next != null)
-                        await foreach (var t in PagesAsync(next)) Add(ParseTrack(t, album, added));
-                }
-            }
-
-            if (s.SpotifyImportPlaylists)
-            {
-                Status = "Importing playlists…";
-                var me = (await GetAsync("/me")).Json?["id"]?.GetValue<string>();
-                await foreach (var p in PagesAsync("/me/playlists?limit=50"))
-                {
-                    var id = p["id"]?.GetValue<string>();
-                    var name = p["name"]?.GetValue<string>() ?? "Playlist";
-                    var owner = p["owner"]?["id"]?.GetValue<string>();
-                    bool collab = p["collaborative"]?.GetValue<bool>() ?? false;
-                    // Spotify only exposes the contents of playlists you own or collaborate on.
-                    if (id == null || (owner != me && !collab)) continue;
-                    Status = $"Importing playlist “{name}”…";
-                    var pl = new SpotifyPlaylist { Id = id, Name = name };
-                    await foreach (var it in PagesAsync($"/playlists/{id}/items?limit=50&additional_types=track"))
-                    {
-                        if (it["is_local"]?.GetValue<bool>() == true) continue;
-                        var t = ParseTrack(it["item"] ?? it["track"], null, ParseDate(it["added_at"]));
-                        if (t == null) continue;
-                        Add(t);
-                        pl.Uris.Add(t.Uri);
-                    }
-                    playlists.Add(pl);
-                }
-            }
-
-            Cache = new SpotifyLibraryCache { Tracks = byUri.Values.ToList(), Playlists = playlists, Genres = Cache.Genres };
+            Cache = result;
+            _cacheLacksArtistIds = false;
             ApplyGenres();
             SaveCache();
             _library.SetSpotifyTracks(Cache.Tracks.Select(ToTrack));
@@ -523,10 +540,273 @@ public sealed class SpotifyService : ObservableObject
         }
         finally
         {
+            ReleaseTracks();
             IsBusy = false;
             RaiseState();
             _syncGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Reads Liked Songs, saved albums and playlists. Liked Songs and saved albums come newest first, so an
+    /// incremental import stops at the first one already cached; Spotify's total tells whether any were removed
+    /// (then that list is read in full). Playlists whose snapshot hasn't changed keep their cached songs.
+    /// Returns null when an incremental import can't be completed from the cache.
+    /// </summary>
+    private async Task<SpotifyLibraryCache?> ImportAsync(bool full)
+    {
+        var s = _settings.Current;
+        var old = Cache;
+        var oldDtos = new Dictionary<string, SpotifyTrackDto>();
+        foreach (var t in old.Tracks) oldDtos.TryAdd(t.Uri, t);
+        var byUri = new Dictionary<string, SpotifyTrackDto>();
+        bool missing = false;
+
+        void Add(SpotifyTrackDto? t)
+        {
+            if (t == null) return;
+            if (byUri.TryGetValue(t.Uri, out var e)) { if (t.Added < e.Added) e.Added = t.Added; }
+            else byUri[t.Uri] = t;
+        }
+        void Reuse(IEnumerable<string> uris)
+        {
+            foreach (var u in uris)
+            {
+                if (u.Length == 0 || byUri.ContainsKey(u)) continue;
+                if (oldDtos.TryGetValue(u, out var d)) byUri[u] = d;
+                else missing = true;
+            }
+        }
+
+        List<string>? liked = null;
+        if (s.SpotifyImportLiked)
+        {
+            Status = "Importing Liked Songs…";
+            for (int pass = 0; pass < 2 && liked == null; pass++)
+            {
+                var known = !full && pass == 0 ? old.LikedUris : null;
+                var (items, total) = await NewestFirstAsync("/me/tracks?limit=50",
+                    it => it["track"]?["uri"]?.GetValue<string>(), known, n => Status = $"Importing Liked Songs… {n:N0}");
+                var fresh = items.Select(it => it["track"]?["uri"]?.GetValue<string>() ?? "").ToList();
+                var all = known == null ? fresh : fresh.Concat(known).ToList();
+                if (known != null && total >= 0 && all.Count != total) continue;   // songs were removed: read all
+                foreach (var it in items) Add(ParseTrack(it["track"], null, ParseDate(it["added_at"])));
+                if (known != null) Reuse(known);
+                liked = all;
+            }
+        }
+
+        List<SpotifySavedAlbum>? albums = null;
+        if (s.SpotifyImportAlbums)
+        {
+            Status = "Importing saved albums…";
+            for (int pass = 0; pass < 2 && albums == null; pass++)
+            {
+                var known = !full && pass == 0 ? old.SavedAlbums : null;
+                var (items, total) = await NewestFirstAsync("/me/albums?limit=50",
+                    it => it["album"]?["id"]?.GetValue<string>(), known?.Select(a => a.Id).ToList(), null);
+                if (known != null && total >= 0 && items.Count + known.Count != total) continue;   // albums were removed
+                var list = new List<SpotifySavedAlbum>();
+                foreach (var it in items)
+                {
+                    var album = it["album"];
+                    var entry = new SpotifySavedAlbum { Id = album?["id"]?.GetValue<string>() ?? "" };
+                    list.Add(entry);
+                    if (album == null) continue;
+                    var added = ParseDate(it["added_at"]);
+                    void AddAlbumTrack(JsonNode? t)
+                    {
+                        var d = ParseTrack(t, album, added);
+                        if (d == null) return;
+                        Add(d);
+                        entry.Uris.Add(d.Uri);
+                    }
+                    var tracks = album["tracks"];
+                    if (tracks?["items"] is JsonArray first)
+                        foreach (var t in first) AddAlbumTrack(t);
+                    var next = tracks?["next"]?.GetValue<string>();
+                    if (next != null)
+                        await foreach (var t in PagesAsync(next)) AddAlbumTrack(t);
+                }
+                if (known != null)
+                {
+                    list.AddRange(known);
+                    foreach (var a in known) Reuse(a.Uris);
+                }
+                albums = list;
+            }
+        }
+
+        var playlists = new List<SpotifyPlaylist>();
+        if (s.SpotifyImportPlaylists)
+        {
+            Status = "Importing playlists…";
+            var me = (await GetAsync("/me")).Json?["id"]?.GetValue<string>();
+            var oldPlaylists = new Dictionary<string, SpotifyPlaylist>();
+            foreach (var p in old.Playlists) if (p.SnapshotId != null) oldPlaylists.TryAdd(p.Id, p);
+            await foreach (var p in PagesAsync("/me/playlists?limit=50"))
+            {
+                var id = p["id"]?.GetValue<string>();
+                var name = p["name"]?.GetValue<string>() ?? "Playlist";
+                var owner = p["owner"]?["id"]?.GetValue<string>();
+                var snapshot = p["snapshot_id"]?.GetValue<string>();
+                bool collab = p["collaborative"]?.GetValue<bool>() ?? false;
+                // Spotify only exposes the contents of playlists you own or collaborate on.
+                if (id == null || (owner != me && !collab)) continue;
+                if (!full && snapshot != null && oldPlaylists.TryGetValue(id, out var same) && same.SnapshotId == snapshot)
+                {
+                    Reuse(same.Uris);
+                    playlists.Add(new SpotifyPlaylist { Id = id, Name = name, Uris = same.Uris, SnapshotId = snapshot });
+                    continue;
+                }
+                Status = $"Importing playlist “{name}”…";
+                var pl = new SpotifyPlaylist { Id = id, Name = name, SnapshotId = snapshot };
+                await foreach (var it in PagesAsync($"/playlists/{id}/items?limit=50&additional_types=track"))
+                {
+                    if (it["is_local"]?.GetValue<bool>() == true) continue;
+                    var t = ParseTrack(it["item"] ?? it["track"], null, ParseDate(it["added_at"]));
+                    if (t == null) continue;
+                    Add(t);
+                    pl.Uris.Add(t.Uri);
+                }
+                playlists.Add(pl);
+            }
+        }
+
+        if (missing) { SpotifyLog.Write("Incremental sync: cached songs missing, reading everything"); return null; }
+        SpotifyLog.Write($"Sync ({(full ? "full" : "incremental")}): {byUri.Count:N0} songs, {liked?.Count ?? 0:N0} liked, " +
+                         $"{albums?.Count ?? 0:N0} albums, {playlists.Count:N0} playlists");
+        return new SpotifyLibraryCache
+        {
+            Tracks = byUri.Values.ToList(), Playlists = playlists, Genres = old.Genres, LikedUris = liked, SavedAlbums = albums,
+        };
+    }
+
+#if DEBUG
+    // ---- Developer test (--test-sync): incremental sync against a simulated Spotify library, offline ----
+
+    private Func<string, JsonNode?>? _fakeApi;
+    private int _fakeRequests;
+
+    public async Task<string> TestIncrementalSyncAsync()
+    {
+        var log = new List<string>();
+        _refreshToken = "test"; _accessToken = "test"; _expiresAt = DateTime.UtcNow.AddHours(1);
+        var s = _settings.Current;
+        s.SpotifyImportLiked = s.SpotifyImportAlbums = s.SpotifyImportPlaylists = true;
+
+        // The simulated account: newest first everywhere.
+        var liked = Enumerable.Range(0, 230).Select(i => $"spotify:track:L{i}").ToList();
+        var albums = Enumerable.Range(0, 70).Select(i => $"A{i}").ToList();
+        var playlists = new List<(string Id, string Snap, List<string> Uris)>
+        {
+            ("P0", "s0", Enumerable.Range(0, 120).Select(i => $"spotify:track:Q{i}").ToList()),
+            ("P1", "s1", new List<string> { "spotify:track:L3", "spotify:track:X1" }),
+        };
+        JsonNode Track(string uri, string? albumId = null) => new JsonObject
+        {
+            ["type"] = "track", ["uri"] = uri, ["name"] = uri, ["duration_ms"] = 1000L, ["track_number"] = 1, ["disc_number"] = 1,
+            ["artists"] = new JsonArray(new JsonObject { ["id"] = "ar", ["name"] = "Artist" }),
+            ["album"] = new JsonObject { ["id"] = albumId ?? "al", ["name"] = "Album", ["release_date"] = "2020", ["artists"] = new JsonArray(), ["images"] = new JsonArray() },
+        };
+        JsonNode Page<T>(string baseUrl, List<T> all, int offset, Func<T, JsonNode> item)
+        {
+            var items = new JsonArray(all.Skip(offset).Take(50).Select(x => (JsonNode?)item(x)).ToArray());
+            return new JsonObject
+            {
+                ["items"] = items, ["total"] = all.Count,
+                ["next"] = offset + 50 < all.Count ? $"https://api.spotify.com/v1{baseUrl}&offset={offset + 50}" : null,
+            };
+        }
+        _fakeApi = url =>
+        {
+            var u = url.Replace("https://api.spotify.com/v1", "");
+            int offset = u.Contains("offset=") ? int.Parse(u[(u.IndexOf("offset=") + 7)..].Split('&')[0]) : 0;
+            if (u.StartsWith("/me/tracks")) return Page("/me/tracks?limit=50", liked, offset, x => new JsonObject { ["added_at"] = "2024-01-01T00:00:00Z", ["track"] = Track(x) });
+            if (u.StartsWith("/me/albums")) return Page("/me/albums?limit=50", albums, offset, a => new JsonObject
+            {
+                ["added_at"] = "2024-01-01T00:00:00Z",
+                ["album"] = new JsonObject
+                {
+                    ["id"] = a, ["name"] = a, ["release_date"] = "2020", ["artists"] = new JsonArray(new JsonObject { ["name"] = "Band" }), ["images"] = new JsonArray(),
+                    ["tracks"] = new JsonObject { ["items"] = new JsonArray(Enumerable.Range(0, 3).Select(k => (JsonNode?)Track($"spotify:track:{a}t{k}", a)).ToArray()) },
+                },
+            });
+            if (u.StartsWith("/me/playlists")) return Page("/me/playlists?limit=50", playlists, offset, p => new JsonObject
+            {
+                ["id"] = p.Id, ["name"] = p.Id, ["snapshot_id"] = p.Snap, ["owner"] = new JsonObject { ["id"] = "me" },
+            });
+            if (u == "/me") return new JsonObject { ["id"] = "me" };
+            if (u.StartsWith("/playlists/"))
+            {
+                var p = playlists.First(x => u.StartsWith($"/playlists/{x.Id}/"));
+                return Page($"/playlists/{p.Id}/items?limit=50&additional_types=track", p.Uris, offset, x => new JsonObject { ["track"] = Track(x) });
+            }
+            return null;
+        };
+
+        int expected() => liked.Concat(albums.SelectMany(a => Enumerable.Range(0, 3).Select(k => $"spotify:track:{a}t{k}")))
+                                   .Concat(playlists.SelectMany(p => p.Uris)).Distinct().Count();
+        bool ok = true;
+        async Task Step(string name)
+        {
+            _fakeRequests = 0;
+            var r = await ImportAsync(full: false);
+            bool good = r != null && r.Tracks.Count == expected() && r.LikedUris!.SequenceEqual(liked)
+                        && r.SavedAlbums!.Select(a => a.Id).SequenceEqual(albums)
+                        && r.Playlists.Select(p => p.Id + ":" + p.Uris.Count).SequenceEqual(playlists.Select(p => p.Id + ":" + p.Uris.Count));
+            ok &= good;
+            log.Add($"{(good ? "PASS" : "FAIL")} {name}: {_fakeRequests} requests, {r?.Tracks.Count} songs (expected {expected()})");
+            if (r != null) Cache = r;
+        }
+
+        Cache = new SpotifyLibraryCache();
+        await Step("first sync (reads everything)");
+        await Step("nothing changed");
+        liked.InsertRange(0, new[] { "spotify:track:N1", "spotify:track:N2" });
+        await Step("two songs liked");
+        liked.Remove("spotify:track:L100");
+        await Step("one song unliked (Liked Songs read again)");
+        albums.Insert(0, "A_new");
+        await Step("album saved");
+        albums.Remove("A40");
+        await Step("album removed (albums read again)");
+        playlists[1] = ("P1", "s1b", new List<string> { "spotify:track:L3", "spotify:track:X1", "spotify:track:X2" });
+        await Step("playlist changed (only it is read)");
+        playlists.Add(("P2", "s2", new List<string> { "spotify:track:Y1" }));
+        await Step("playlist added");
+        log.Add(ok ? "ALL PASSED" : "SOME FAILED");
+        return string.Join(Environment.NewLine, log);
+    }
+#endif
+
+    /// <summary>
+    /// Pages a newest-first list until the first item whose key is in <paramref name="known"/> (all of it when
+    /// known is null). Returns the new items and Spotify's total (-1 if unknown).
+    /// </summary>
+    private async Task<(List<JsonNode> Items, int Total)> NewestFirstAsync(string firstUrl, Func<JsonNode, string?> key,
+                                                                          IReadOnlyCollection<string>? known, Action<int>? progress)
+    {
+        var knownSet = known == null ? null : new HashSet<string>(known);
+        var list = new List<JsonNode>();
+        int total = -1, guard = 0;
+        string? url = firstUrl;
+        while (url != null && guard++ < 400)
+        {
+            var r = await GetAsync(url);
+            if (!r.Ok || r.Json == null) throw new InvalidOperationException($"Spotify answered {(int)r.Status}.");
+            if (total < 0) total = r.Json["total"]?.GetValue<int>() ?? -1;
+            if (r.Json["items"] is JsonArray items)
+                foreach (var it in items)
+                {
+                    if (it == null) continue;
+                    if (knownSet != null && key(it) is { } k && knownSet.Contains(k)) return (list, total);
+                    list.Add(it);
+                    if (list.Count % 250 == 0) progress?.Invoke(list.Count);
+                }
+            url = r.Json["next"]?.GetValue<string>();
+        }
+        return (list, total);
     }
 
     private void SaveCache()
@@ -616,10 +896,19 @@ public sealed class SpotifyService : ObservableObject
         await Task.WhenAll(jobs.Select(async j =>
         {
             await gate.WaitAsync();
-            try { await art.EnsureFromUrlAsync(j.Key, j.ArtUrl); } finally { gate.Release(); }
+            try { await art.EnsureFromUrlAsync(j.Key, SmallArtUrl(j.ArtUrl)); } finally { gate.Release(); }
         }));
         if (jobs.Count > 0) _library.SetSpotifyTracks(Cache.Tracks.Select(ToTrack)); // refresh shelves with art
     }
+
+    // Spotify cover URLs name their size: ab67616d0000b273 = 640 px, ab67616d00001e02 = 300 px.
+    private const string Cover640 = "ab67616d0000b273", Cover300 = "ab67616d00001e02";
+
+    /// <summary>The 640 px version of a Spotify cover URL (the same URL when its size can't be told).</summary>
+    public static string? LargeArtUrl(string? url) => url?.Replace(Cover300, Cover640);
+
+    /// <summary>The 300 px version of a Spotify cover URL (older caches stored the 640 px one).</summary>
+    public static string? SmallArtUrl(string? url) => url?.Replace(Cover640, Cover300);
 
     private static DateTime ParseDate(JsonNode? n) =>
         n != null && DateTime.TryParse(n.GetValue<string>(), null, System.Globalization.DateTimeStyles.AdjustToUniversal, out var d)
@@ -636,9 +925,10 @@ public sealed class SpotifyService : ObservableObject
             ? string.Join(", ", a.Select(x => x?["name"]?.GetValue<string>()).Where(x => !string.IsNullOrEmpty(x)))
             : "";
         var release = album?["release_date"]?.GetValue<string>() ?? "";
+        // The ~300 px cover (for shelves); the 640 px one is derived from it when a big view needs it.
         string? image = null;
         if (album?["images"] is JsonArray imgs && imgs.Count > 0)
-            image = imgs.OrderByDescending(i => i?["width"]?.GetValue<int>() ?? 0).First()?["url"]?.GetValue<string>();
+            image = imgs.OrderBy(i => Math.Abs((i?["width"]?.GetValue<int>() ?? 0) - 300)).First()?["url"]?.GetValue<string>();
         var albumArtists = Names(album?["artists"]);
         return new SpotifyTrackDto
         {

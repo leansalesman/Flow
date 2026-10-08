@@ -75,7 +75,8 @@ public sealed class MusicVisualizer : FrameworkElement
     private float[] _mask = Array.Empty<float>();
     private float[] _raw = Array.Empty<float>(), _level = Array.Empty<float>(), _peak = Array.Empty<float>(), _hold = Array.Empty<float>();
     private float _bass, _mid, _treble;
-    private TimeSpan _lastFrame;
+    private TimeSpan _lastFrame, _nextDue;
+    private static readonly TimeSpan FrameStep = TimeSpan.FromTicks(166_667), FrameSlack = TimeSpan.FromMilliseconds(2);
     private readonly Random _rng = new(17);
 
     private static bool IsVector(VisualizerStyle s) =>
@@ -86,18 +87,48 @@ public sealed class MusicVisualizer : FrameworkElement
         IsHitTestVisible = false;
         SnapsToDevicePixels = true;
         IsVisibleChanged += (_, _) => UpdateSubscription();
-        Loaded += (_, _) => UpdateSubscription();
-        Unloaded += (_, _) => { if (_subscribed) { CompositionTarget.Rendering -= OnFrame; _subscribed = false; } };
+        Loaded += (_, _) =>
+        {
+            // A minimized window is still IsVisible, so follow its state too.
+            if (_window == null && Window.GetWindow(this) is { } w) { _window = w; w.StateChanged += OnWindowStateChanged; }
+            UpdateSubscription();
+        };
+        Unloaded += (_, _) =>
+        {
+            if (_window != null) { _window.StateChanged -= OnWindowStateChanged; _window = null; }
+            if (_subscribed) { CompositionTarget.Rendering -= OnFrame; _subscribed = false; SetDrawing(-1); }
+        };
     }
 
+    private static int _drawingCount;
+    /// <summary>True while any visualizer is on screen and not Off (Spotify app mode only captures audio then).</summary>
+    public static bool AnyDrawing => _drawingCount > 0;
+    public static event Action? AnyDrawingChanged;
+
+    private static void SetDrawing(int delta)
+    {
+        bool was = AnyDrawing;
+        _drawingCount = Math.Max(0, _drawingCount + delta);
+        if (was != AnyDrawing) AnyDrawingChanged?.Invoke();
+    }
+
+    private Window? _window;
+    private void OnWindowStateChanged(object? sender, EventArgs e) => UpdateSubscription();
+
+    /// <summary>
+    /// Runs the frame loop only while there is something to draw: visible, not minimized and not Off. With no
+    /// subscriber WPF stops rendering at the monitor's refresh rate.
+    /// </summary>
     private void UpdateSubscription()
     {
-        bool want = IsVisible && IsLoaded;
-        if (want && !_subscribed) { CompositionTarget.Rendering += OnFrame; _subscribed = true; _forceRedraw = true; }
+        bool want = IsVisible && IsLoaded && VisualStyle != VisualizerStyle.Off
+                    && _window?.WindowState != WindowState.Minimized;
+        if (want && !_subscribed) { CompositionTarget.Rendering += OnFrame; _subscribed = true; _forceRedraw = true; SetDrawing(+1); }
         else if (!want && _subscribed)
         {
             CompositionTarget.Rendering -= OnFrame;
             _subscribed = false;
+            SetDrawing(-1);
             // Hidden (other page / minimized): release the drawing surface; it's rebuilt when shown again.
             _bmp = null;
             _spec = Array.Empty<float>();
@@ -121,6 +152,7 @@ public sealed class MusicVisualizer : FrameworkElement
         Array.Clear(_peak);
         if (_bmp != null) ClearBitmap();
         InvalidateVisual();
+        UpdateSubscription();
     }
 
     private void OnColorsChanged()
@@ -204,6 +236,9 @@ public sealed class MusicVisualizer : FrameworkElement
         if (ActualWidth < 2 || ActualHeight < 2) return;
         var now = e is RenderingEventArgs re ? re.RenderingTime : TimeSpan.FromTicks(Environment.TickCount64 * 10000);
         if (now == _lastFrame) return;
+        // Cap at 60 fps: on 120/144 Hz screens skip frames until the next 1/60 s step is due.
+        if (now < _nextDue - FrameSlack) return;
+        _nextDue = now - _nextDue > FrameStep ? now + FrameStep : _nextDue + FrameStep;
         float dt = (float)Math.Clamp((now - _lastFrame).TotalSeconds, 0.001, 0.1);
         _lastFrame = now;
         Tick(dt);

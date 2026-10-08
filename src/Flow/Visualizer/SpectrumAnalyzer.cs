@@ -77,6 +77,15 @@ public sealed class SpectrumAnalyzer
             Array.Copy(_ring, 0, _snapshot, first, start);
         }
 
+        // Silence (paused, gaps, quiet intros): nothing to analyze, skip the FFT.
+        float loudest = 0;
+        for (int i = 0; i < FftSize; i++) loudest = Math.Max(loudest, Math.Abs(_snapshot[i]));
+        if (loudest < 1e-5f)
+        {
+            Array.Clear(levels, 0, Math.Min(bandCount, levels.Length));
+            return;
+        }
+
         for (int i = 0; i < FftSize; i++)
         {
             _fft[i].X = _snapshot[i] * _window[i];
