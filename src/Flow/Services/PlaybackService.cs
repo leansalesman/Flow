@@ -572,6 +572,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
 
     private void SetCurrent(Track track)
     {
+        _ui.BeginInvoke(DispatcherPriority.Background, SaveStateToDisk);   // after the new song's index is set
         CurrentTrack = track;
         var key = track.ArtKey;
         Task.Run(() =>
@@ -684,7 +685,18 @@ public sealed class PlaybackService : ObservableObject, IDisposable
                 _current.LastPlayed = DateTime.Now;
                 _library.SaveStats(_current);
             }
+            // Keep the saved place current, so a forced close (update, crash, power loss) loses only seconds.
+            if ((DateTime.UtcNow - _lastAutoSave).TotalSeconds >= 30) SaveStateToDisk();
         }
+    }
+
+    private DateTime _lastAutoSave = DateTime.UtcNow;
+
+    /// <summary>Writes the queue and position to settings.json now (also on every song change).</summary>
+    private void SaveStateToDisk()
+    {
+        _lastAutoSave = DateTime.UtcNow;
+        try { SaveState(); _settings.Save(); } catch (Exception ex) { DiagLog.Write("Saving playback state failed: " + ex.Message); }
     }
 
     // ---- Persistence -------------------------------------------------------------------------

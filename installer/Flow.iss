@@ -90,10 +90,17 @@ end;
 // Before installing or updating: ask Flow to close (it saves its state), then make sure Flow and librespot are gone.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  rc: Integer;
+  rc, i: Integer;
 begin
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM Flow.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
-  Sleep(3000);
+  // Give Flow up to 15 s to finish closing (it saves its place and stops Spotify) before forcing it.
+  for i := 1 to 30 do
+  begin
+    Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq Flow.exe" /NH | find /I "Flow.exe" >NUL', '',
+         SW_HIDE, ewWaitUntilTerminated, rc);
+    if rc <> 0 then Break;
+    Sleep(500);
+  end;
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Flow.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM librespot.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
   Sleep(500);
