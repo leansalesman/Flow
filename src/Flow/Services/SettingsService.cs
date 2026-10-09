@@ -38,6 +38,7 @@ public sealed class AppSettings
     public double? MiniPlayerLeft { get; set; }
     public double? MiniPlayerTop { get; set; }
     public double MiniPlayerWidth { get; set; } = 316;
+    public double? MiniPlayerHeight { get; set; }
     public bool MiniPlayerSongPanel { get; set; } = true;
 
     /// <summary>Library shows only songs with a heart (and the albums they're on).</summary>

@@ -1,9 +1,9 @@
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Interop;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Flow.Services;
@@ -12,21 +12,23 @@ using Flow.ViewModels;
 namespace Flow.Views;
 
 /// <summary>
-/// The pop-out mini player: album art that floats above all windows, anywhere on the desktop. Hovering shows
-/// every control (transport, shuffle, repeat, favorite, Up Next, volume, timeline); they fade away a few seconds
-/// after the pointer leaves. Resizing keeps its shape, so everything scales evenly; the song panel under the art
-/// can be hidden for art only.
+/// The pop-out mini player, floating above all windows anywhere on the desktop (the main window minimizes while
+/// it's out). It resizes freely from any edge or corner and lays itself out for the shape it's given: album art
+/// with the LCD under it, or, once there isn't room for a decent cover, just the LCD as a bar whose text, timeline
+/// and buttons adapt to its size. Controls appear on hover and fade a few seconds after the pointer leaves.
 /// </summary>
 public partial class MiniPlayerWindow : Window
 {
-    private const double Inset = 16;      // shadow margin around the player (8 each side)
-    private const double DesignWidth = 300;
+    private const double Inset = 16;          // shadow margin around the player (8 each side)
+    private const double MinArt = 120;        // smaller than this, the art goes and the LCD becomes a bar
+    private const double MinW = 140, MinH = 40; // the player itself (without the shadow margin)
+    private const double Gap = 6;
     private static MiniPlayerWindow? _current;
 
     private readonly MainViewModel _vm;
     private readonly SettingsService _settings;
     private readonly DispatcherTimer _hide;
-    private bool _shown;
+    private bool _shown, _idleHide, _barMode;
 
     public static bool IsOpen => _current != null;
 
@@ -36,15 +38,21 @@ public partial class MiniPlayerWindow : Window
     internal static MiniPlayerWindow? Current => _current;
     internal void ProbeShowControls(bool show) => SetControls(show);
     internal void ProbeTogglePanel() => PanelToggle_Click(this, new RoutedEventArgs());
-    internal void ProbeSetWidth(double w) { Width = w; FitHeight(); }
+    internal void ProbeSetPanel(bool on) { if (_panelOn != on) PanelToggle_Click(this, new RoutedEventArgs()); }
+    internal void ProbeSetSize(double w, double h) { Width = w + Inset; Height = h + Inset; }
 #endif
 
-    /// <summary>Pops the mini player out, or closes it when it's already open.</summary>
+    /// <summary>Pops the mini player out (minimizing Flow), or closes it when it's already open.</summary>
     public static void Toggle(MainViewModel vm, SettingsService settings)
     {
         if (_current != null) { _current.Close(); return; }
         _current = new MiniPlayerWindow(vm, settings);
         _current.Show();
+#if DEBUG
+        if (ProbeMode) return;
+#endif
+        // Only the mini player on screen until the user wants Flow back.
+        if (Application.Current.MainWindow is MainWindow main && main.IsVisible) main.WindowState = WindowState.Minimized;
     }
 
     private MiniPlayerWindow(MainViewModel vm, SettingsService settings)
@@ -57,44 +65,158 @@ public partial class MiniPlayerWindow : Window
         _hide.Tick += (_, _) => { _hide.Stop(); if (!IsMouseOver || _idleHide) SetControls(false); _idleHide = false; };
 
         var s = settings.Current;
-        SongPanel.Visibility = s.MiniPlayerSongPanel ? Visibility.Visible : Visibility.Collapsed;
+        _panelOn = s.MiniPlayerSongPanel;
         UpdatePanelToggle();
-        Width = Math.Max(MinWidthDip, s.MiniPlayerWidth);
+        Width = Math.Max(MinW + Inset, s.MiniPlayerWidth);
+        Height = Math.Max(MinH + Inset, s.MiniPlayerHeight ?? 388);
         SourceInitialized += (_, _) => HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
-        SizeChanged += (_, _) => AdaptControls();
         Loaded += (_, _) =>
         {
-            Width = Math.Min(Width, MaxWidthDip(DesignHeight() / DesignWidth));
-            FitHeight();
+            var work = SystemParameters.WorkArea;
+            Width = Math.Min(Width, work.Width);
+            Height = Math.Min(Height, work.Height);
             PlaceOnScreen(s.MiniPlayerLeft, s.MiniPlayerTop);
-            AdaptControls();
         };
 
         MouseEnter += (_, _) => SetControls(true);
         MouseMove += (_, _) => { SetControls(true); _idleHide = true; _hide.Stop(); _hide.Start(); };
-        MouseLeave += (_, _) => { _idleHide = false; _hide.Stop(); _hide.Interval = TimeSpan.FromSeconds(2.5); _hide.Start(); };
+        MouseLeave += (_, _) => { _idleHide = false; _hide.Stop(); _hide.Start(); };
         PreviewKeyDown += OnKey;
         Closed += (_, _) =>
         {
             _hide.Stop();
             SaveBounds();
             _current = null;
+            // Closing the mini player brings Flow back (unless Flow itself is closing).
+            if (!Application.Current.Dispatcher.HasShutdownStarted && Application.Current.MainWindow is MainWindow main
+                && main.WindowState == WindowState.Minimized)
+                main.BringToFront();
         };
     }
 
-    private bool _idleHide;
+    // ---- Layout: art + LCD, or the LCD alone as a bar ----
+
+    private bool _panelOn = true;
+
+    private void Stage_SizeChanged(object sender, SizeChangedEventArgs e) => Arrange();
+
+    private void Arrange()
+    {
+        double w = Stage.ActualWidth, h = Stage.ActualHeight;
+        if (w <= 0 || h <= 0) return;
+
+        double lcdH = _panelOn ? Math.Clamp(w * 0.18, 46, 74) : 0;
+        double art = Math.Min(w, h - (_panelOn ? lcdH + Gap : 0));
+        bool bar = art < MinArt;
+        if (bar != _barMode)
+        {
+            _barMode = bar;
+            SetControls(_shown, force: true);   // hover now shows the other set of controls
+        }
+
+        if (bar)
+        {
+            ArtBox.Visibility = Visibility.Collapsed;
+            SongPanel.Visibility = Visibility.Visible;
+            SongPanel.Margin = new Thickness(4);
+            SongPanel.Height = Math.Max(0, h - 8);
+            SongPanel.Width = Math.Max(0, w - 8);
+            LayoutLcd(w - 8, h - 8, bar: true);
+            return;
+        }
+
+        // Art centered, LCD under it; the pair is centered vertically when the player is taller than it needs.
+        double total = art + (_panelOn ? Gap + lcdH : 0);
+        double top = Math.Max(0, (h - total) / 2);
+        ArtBox.Visibility = Visibility.Visible;
+        ArtBox.Width = ArtBox.Height = art;
+        ArtBox.Margin = new Thickness(0, top, 0, 0);
+        SongPanel.Visibility = _panelOn ? Visibility.Visible : Visibility.Collapsed;
+        if (_panelOn)
+        {
+            double lcdW = Math.Max(art, Math.Min(w, art + 80)) - 12;
+            SongPanel.Width = lcdW;
+            SongPanel.Height = lcdH;
+            SongPanel.Margin = new Thickness((w - lcdW) / 2, top + art + Gap, 0, 0);
+            SongPanel.HorizontalAlignment = HorizontalAlignment.Left;
+            LayoutLcd(lcdW, lcdH, bar: false);
+        }
+
+        // The art's own controls: extras only when the cover is big enough to hold them comfortably.
+        var extras = art < 236 ? Visibility.Collapsed : Visibility.Visible;
+        ShuffleToggle.Visibility = RepeatToggle.Visibility = SecondaryRow.Visibility = extras;
+        TimelineRow.Visibility = art < 176 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// The LCD fits its text to its size: a bigger title in a taller bar, the second line only when there's
+    /// height for it, the timeline (bar only) when there's room, and fewer buttons when it's narrow.
+    /// </summary>
+    private void LayoutLcd(double w, double h, bool bar)
+    {
+        SongPanel.HorizontalAlignment = bar ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+        double title = bar ? Math.Clamp(h * 0.24, 11, 22) : Math.Clamp(h * 0.26, 12, 16);
+        LcdTitle.FontSize = title;
+        double small = Math.Max(9, title * 0.74);
+        LcdSubAlbum.FontSize = LcdSubSpotify.FontSize = LcdElapsed.FontSize = LcdDuration.FontSize = small;
+
+        bool showTimeline = bar && h >= 44 && w >= 200;
+        bool showSub = bar ? h >= (showTimeline ? 70 : 46) && w >= 170 : h >= 44;
+        LcdSub.Visibility = showSub ? Visibility.Visible : Visibility.Collapsed;
+        LcdTimeline.Visibility = showTimeline ? Visibility.Visible : Visibility.Collapsed;
+
+        // Bar buttons scale with its height; narrow bars keep just play/pause (then previous/next, then the rest).
+        double b = Math.Clamp(h * 0.62, 24, 40);
+        foreach (var c in new Control[] { LcdPrev, LcdPlay, LcdNext, LcdShuffle, LcdRepeat, LcdFavorite, LcdMute, LcdBack, LcdClose })
+        {
+            c.Width = c.Height = b;
+            c.FontSize = Math.Clamp(b * 0.4, 10, 16);
+        }
+        LcdPrev.Visibility = LcdNext.Visibility = w >= 250 ? Visibility.Visible : Visibility.Collapsed;
+        LcdExtras.Visibility = w >= 660 ? Visibility.Visible : Visibility.Collapsed;
+        LcdBack.Visibility = w >= 190 ? Visibility.Visible : Visibility.Collapsed;
+        ApplyLcdHover();
+    }
 
     // ---- Controls fade in on hover, out a few seconds after the pointer leaves ----
 
-    private void SetControls(bool show)
+    private void SetControls(bool show, bool force = false)
     {
-        if (show == _shown) return;
+        if (show == _shown && !force) return;
         _shown = show;
-        Controls.IsHitTestVisible = show;
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         var fade = new DoubleAnimation(show ? 1 : 0, TimeSpan.FromMilliseconds(show ? 140 : 380)) { EasingFunction = ease };
-        Controls.BeginAnimation(OpacityProperty, fade);
-        Grip.BeginAnimation(OpacityProperty, fade.Clone());
+        bool art = show && !_barMode, lcd = show && _barMode;
+        Controls.IsHitTestVisible = art;
+        LcdControls.IsHitTestVisible = lcd;
+        Controls.BeginAnimation(OpacityProperty, new DoubleAnimation(art ? 1 : 0, fade.Duration) { EasingFunction = ease });
+        LcdControls.BeginAnimation(OpacityProperty, new DoubleAnimation(lcd ? 1 : 0, fade.Duration) { EasingFunction = ease });
+        ApplyLcdHover();
+    }
+
+    /// <summary>While the bar's buttons show, the text makes room for them (or steps back when there isn't any).</summary>
+    private void ApplyLcdHover()
+    {
+        if (!_barMode || !_shown)
+        {
+            LcdInfo.Margin = new Thickness(10, 4, 10, 4);
+            LcdInfo.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(200)));
+            return;
+        }
+        LcdLeft.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        LcdRight.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double left = LcdLeft.DesiredSize.Width + 10, right = LcdRight.DesiredSize.Width + 10;
+        double room = SongPanel.ActualWidth - left - right;
+        if (room >= 110)
+        {
+            LcdInfo.Margin = new Thickness(left, 4, right, 4);
+            LcdInfo.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(200)));
+        }
+        else
+        {
+            LcdInfo.Margin = new Thickness(10, 4, 10, 4);
+            LcdInfo.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)));   // buttons only
+        }
     }
 
     // ---- Moving, resizing, song panel ----
@@ -106,54 +228,13 @@ public partial class MiniPlayerWindow : Window
         SaveBounds();
     }
 
-    /// <summary>The player's height at 300 wide (art plus the song panel when shown).</summary>
-    private double DesignHeight()
-    {
-        Frame.Measure(new Size(DesignWidth, double.PositiveInfinity));
-        return Math.Max(DesignWidth, Frame.DesiredSize.Height);
-    }
-
-    private void FitHeight() => Height = (Width - Inset) * DesignHeight() / DesignWidth + Inset;
-
-    private void Grip_DragDelta(object sender, DragDeltaEventArgs e)
-    {
-        double ratio = DesignHeight() / DesignWidth;
-        // Follow whichever way the pointer moved more, keeping the shape.
-        double grow = Math.Abs(e.HorizontalChange) >= Math.Abs(e.VerticalChange * ratio) ? e.HorizontalChange : e.VerticalChange / ratio;
-        Width = Math.Clamp(Width + grow, MinWidthDip, MaxWidthDip(ratio));
-        FitHeight();
-    }
-
-    /// <summary>
-    /// Small players keep only what fits comfortably: previous, play/pause, next and the timeline; shuffle,
-    /// repeat, favorite, Up Next and volume come back as the player grows (and the timeline goes when tiny).
-    /// </summary>
-    private void AdaptControls()
-    {
-        double w = Width - Inset;
-        var extras = w < 236 ? Visibility.Collapsed : Visibility.Visible;
-        ShuffleToggle.Visibility = RepeatToggle.Visibility = SecondaryRow.Visibility = extras;
-        TimelineRow.Visibility = w < 176 ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    // ---- Resizing from any edge or corner, keeping the shape (native, so it's smooth) ----
-
-    private const double MinWidthDip = 150;      // still shows the art and the play button
     private const int WM_NCHITTEST = 0x0084, WM_SIZING = 0x0214, WM_EXITSIZEMOVE = 0x0232;
     private const int HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14,
                       HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
-    private const int WMSZ_LEFT = 1, WMSZ_RIGHT = 2, WMSZ_TOP = 3, WMSZ_TOPLEFT = 4, WMSZ_TOPRIGHT = 5,
-                      WMSZ_BOTTOM = 6, WMSZ_BOTTOMLEFT = 7, WMSZ_BOTTOMRIGHT = 8;
+    private const int WMSZ_LEFT = 1, WMSZ_TOP = 3, WMSZ_TOPLEFT = 4, WMSZ_TOPRIGHT = 5, WMSZ_BOTTOMLEFT = 7;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left, Top, Right, Bottom; }
-
-    /// <summary>As large as the screen allows: the whole player stays within the work area.</summary>
-    private static double MaxWidthDip(double ratio)
-    {
-        var work = SystemParameters.WorkArea;
-        return Math.Max(MinWidthDip, Math.Min(work.Width, (work.Height - Inset) / ratio + Inset));
-    }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
@@ -173,18 +254,16 @@ public partial class MiniPlayerWindow : Window
             }
             case WM_SIZING:
             {
-                // Keep the player's shape: the dragged side decides the size, the other side follows.
+                // Any shape, down to a small bar; never larger than the screen.
                 var r = Marshal.PtrToStructure<RECT>(lParam);
-                double dpi = VisualTreeHelper_Dpi();
-                double ratio = DesignHeight() / DesignWidth, inset = Inset * dpi;
+                double dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this).DpiScaleX;
+                var work = SystemParameters.WorkArea;
+                int minW = (int)((MinW + Inset) * dpi), minH = (int)((MinH + Inset) * dpi);
+                int maxW = (int)(work.Width * dpi), maxH = (int)(work.Height * dpi);
                 int edge = wParam.ToInt32();
-                double w = r.Right - r.Left, h = r.Bottom - r.Top;
-                if (edge is WMSZ_TOP or WMSZ_BOTTOM) w = (h - inset) / ratio + inset;
-                w = Math.Clamp(w, MinWidthDip * dpi, MaxWidthDip(ratio) * dpi);
-                h = (w - inset) * ratio + inset;
-                int iw = (int)Math.Round(w), ih = (int)Math.Round(h);
-                if (edge is WMSZ_LEFT or WMSZ_TOPLEFT or WMSZ_BOTTOMLEFT) r.Left = r.Right - iw; else r.Right = r.Left + iw;
-                if (edge is WMSZ_TOP or WMSZ_TOPLEFT or WMSZ_TOPRIGHT) r.Top = r.Bottom - ih; else r.Bottom = r.Top + ih;
+                int w = Math.Clamp(r.Right - r.Left, minW, maxW), h = Math.Clamp(r.Bottom - r.Top, minH, maxH);
+                if (edge is WMSZ_LEFT or WMSZ_TOPLEFT or WMSZ_BOTTOMLEFT) r.Left = r.Right - w; else r.Right = r.Left + w;
+                if (edge is WMSZ_TOP or WMSZ_TOPLEFT or WMSZ_TOPRIGHT) r.Top = r.Bottom - h; else r.Bottom = r.Top + h;
                 Marshal.StructureToPtr(r, lParam, false);
                 handled = true;
                 return new IntPtr(1);
@@ -196,25 +275,19 @@ public partial class MiniPlayerWindow : Window
         return IntPtr.Zero;
     }
 
-    private double VisualTreeHelper_Dpi() => System.Windows.Media.VisualTreeHelper.GetDpi(this).DpiScaleX;
-
-    private void Grip_DragCompleted(object sender, DragCompletedEventArgs e) => SaveBounds();
-
     private void PanelToggle_Click(object sender, RoutedEventArgs e)
     {
-        bool show = SongPanel.Visibility != Visibility.Visible;
-        SongPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        _settings.Current.MiniPlayerSongPanel = show;
+        _panelOn = !_panelOn;
+        _settings.Current.MiniPlayerSongPanel = _panelOn;
         UpdatePanelToggle();
-        FitHeight();
+        Arrange();
         SaveBounds();
     }
 
     private void UpdatePanelToggle()
     {
-        bool shown = SongPanel.Visibility == Visibility.Visible;
-        PanelToggle.Content = shown ? "" : "";
-        PanelToggle.ToolTip = shown ? "Hide the song panel" : "Show the song panel";
+        PanelToggle.Content = _panelOn ? "" : "";
+        PanelToggle.ToolTip = _panelOn ? "Hide the song panel" : "Show the song panel";
     }
 
     /// <summary>Back where it was last time, or the bottom-right of the screen; always fully visible.</summary>
@@ -224,9 +297,9 @@ public partial class MiniPlayerWindow : Window
         double vl = SystemParameters.VirtualScreenLeft, vt = SystemParameters.VirtualScreenTop;
         double vw = SystemParameters.VirtualScreenWidth, vh = SystemParameters.VirtualScreenHeight;
 #if DEBUG
-        if (ProbeMode) left = null;
+        if (ProbeMode) { Left = -30000; Top = -30000; return; }
 #endif
-        if (left is double l && top is double t && l >= vl - 40 && t >= vt - 20 && l + 80 <= vl + vw && t + 80 <= vh + vt)
+        if (left is double l && top is double t && l >= vl - 40 && t >= vt - 20 && l + 80 <= vl + vw && t + 40 <= vh + vt)
         {
             Left = l;
             Top = t;
@@ -234,9 +307,6 @@ public partial class MiniPlayerWindow : Window
         }
         Left = work.Right - Width - 16;
         Top = work.Bottom - Height - 16;
-#if DEBUG
-        if (ProbeMode) { Left = -30000; Top = -30000; }
-#endif
     }
 
     private void SaveBounds()
@@ -245,6 +315,7 @@ public partial class MiniPlayerWindow : Window
         s.MiniPlayerLeft = Left;
         s.MiniPlayerTop = Top;
         s.MiniPlayerWidth = Width;
+        s.MiniPlayerHeight = Height;
         _settings.Save();
     }
 
@@ -285,13 +356,13 @@ public partial class MiniPlayerWindow : Window
         }
     }
 
-    // ---- Timeline ----
+    // ---- Timeline (on the art, or in the bar) ----
 
     private void Timeline_Down(object sender, MouseButtonEventArgs e) => _vm.Playback.IsUserSeeking = true;
 
     private void Timeline_Up(object sender, MouseButtonEventArgs e)
     {
-        _vm.Playback.Seek(Timeline.Value);
+        if (sender is Slider s) _vm.Playback.Seek(s.Value);
         _vm.Playback.IsUserSeeking = false;
     }
 
@@ -299,7 +370,7 @@ public partial class MiniPlayerWindow : Window
 
     private void Timeline_DragCompleted(object sender, DragCompletedEventArgs e)
     {
-        _vm.Playback.Seek(Timeline.Value);
+        if (sender is Slider s) _vm.Playback.Seek(s.Value);
         _vm.Playback.IsUserSeeking = false;
     }
 }

@@ -354,13 +354,18 @@ public partial class App
             mini.ProbeTogglePanel();
             await Task.Delay(900);
             Snap(mini, Path.Combine(outDir, "11c_mini_art_only.png"));
-            mini.ProbeTogglePanel();
-            foreach (var w in new[] { 190.0, 230.0, 640.0 })
+            mini.ProbeSetPanel(true);
+            // Free resizing: art + LCD shapes, then bars of several sizes (controls shown).
+            foreach (var (w, h, shape) in new[] { (300.0, 372.0, "tall"), (520.0, 300.0, "wide"), (560.0, 96.0, "bar_large"), (760.0, 70.0, "bar_wide"),
+                                                 (360.0, 56.0, "bar_medium"), (200.0, 44.0, "bar_small") })
             {
-                mini.ProbeSetWidth(w);
+                mini.ProbeSetSize(w, h);
+                mini.ProbeShowControls(false);
+                await Task.Delay(700);
+                Snap(mini, Path.Combine(outDir, $"11d_mini_{shape}.png"));
                 mini.ProbeShowControls(true);
-                await Task.Delay(900);
-                Snap(mini, Path.Combine(outDir, $"11d_mini_{w:0}.png"));
+                await Task.Delay(700);
+                Snap(mini, Path.Combine(outDir, $"11e_mini_{shape}_hover.png"));
             }
             mini.Close();
 
@@ -376,7 +381,9 @@ public partial class App
     private static void Snap(Window w, string file)
     {
         var root = (FrameworkElement)w.Content;
-        int width = (int)root.ActualWidth, height = (int)root.ActualHeight;
+        // Include the root's margin (the mini player's shadow area), or the right and bottom get cut off.
+        int width = (int)(root.ActualWidth + root.Margin.Left + root.Margin.Right);
+        int height = (int)(root.ActualHeight + root.Margin.Top + root.Margin.Bottom);
         var bg = new DrawingVisual();
         using (var dc = bg.RenderOpen())
             dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x20, 0x22, 0x28)), null, new Rect(0, 0, width, height));
