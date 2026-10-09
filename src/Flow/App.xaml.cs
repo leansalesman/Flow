@@ -32,7 +32,7 @@ public partial class App : Application
 #if DEBUG
         // Developer switches (Debug builds only). They read the real settings but must never write them.
         if (e.Args.Length > 0 && e.Args[0] is "--test-genres" or "--render-visualizers" or "--render-library" or "--test-sync"
-                or "--test-tags" or "--test-update" or "--perf-switch" or "--memory-ui" or "--memory-test")
+                or "--test-tags" or "--test-update" or "--perf-switch" or "--memory-ui" or "--memory-test" or "--screenshots")
             SettingsService.ReadOnly = true;
         if (e.Args.Length == 2 && e.Args[0] == "--test-genres")
         {
@@ -72,6 +72,12 @@ public partial class App : Application
             return;
         }
 #if DEBUG
+        if (e.Args.Length == 2 && e.Args[0] == "--screenshots")
+        {
+            base.OnStartup(e);
+            RunScreenshots(e.Args[1]);
+            return;
+        }
         if (e.Args.Length >= 2 && e.Args[0] == "--test-tags")
         {
             base.OnStartup(e);
