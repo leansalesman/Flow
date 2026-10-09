@@ -50,6 +50,17 @@ public sealed class SpotifySearchResults
     public List<SpotifySearchAlbum> Albums { get; } = new();
 }
 
+/// <summary>
+/// One line of the Search dropdown: an artist, song or album, with a small picture. Payload is the artist name,
+/// the <see cref="SpotifySearchSong"/> or the <see cref="SpotifySearchAlbum"/>.
+/// </summary>
+public sealed record SpotifySuggestion(string Kind, string Title, string Subtitle, string? ImageUrl, object Payload)
+{
+    public bool IsArtist => Kind == "Artist";
+    /// <summary>The line under the title: "Artist", or "Song · artist" / "Album · artist".</summary>
+    public string SubLine => IsArtist ? "Artist" : $"{Kind}  ·  {Subtitle}";
+}
+
 /// <summary>A song found on Spotify, with a small cover image URL for the result row.</summary>
 public sealed record SpotifySearchSong(Track Track, string? ImageUrl);
 
@@ -984,6 +995,44 @@ public sealed class SpotifyService : ObservableObject
                     a["total_tracks"]?.GetValue<int>() ?? 0, ImageUrl(a, 300), ImageUrl(a, 640)));
             }
         return results;
+    }
+
+    /// <summary>Search-as-you-type suggestions: a few artists, songs and albums, best matches first.</summary>
+    public async Task<List<SpotifySuggestion>?> SuggestAsync(string query)
+    {
+        var q = Uri.EscapeDataString(query.Trim());
+        var r = await GetAsync($"/search?q={q}&type=artist,track,album&limit=4");
+        if (!r.Ok || r.Json == null) return null;
+        var list = new List<SpotifySuggestion>();
+        if (r.Json["artists"]?["items"] is JsonArray artists)
+            foreach (var a in artists.Take(3))
+            {
+                var name = a?["name"]?.GetValue<string>();
+                if (string.IsNullOrEmpty(name)) continue;
+                list.Add(new SpotifySuggestion("Artist", name, "Artist", ImageUrl(a, 64), name));
+            }
+        if (r.Json["tracks"]?["items"] is JsonArray tracks)
+            foreach (var t in tracks.Take(4))
+                if (ParseTrack(t, null, DateTime.Now) is { } d)
+                {
+                    var song = new SpotifySearchSong(ToTrack(d), ImageUrl(t?["album"], 64));
+                    list.Add(new SpotifySuggestion("Song", d.Title, d.Artist, song.ImageUrl, song));
+                }
+        if (r.Json["albums"]?["items"] is JsonArray albums)
+            foreach (var a in albums.Take(3))
+            {
+                var uri = a?["uri"]?.GetValue<string>();
+                if (uri == null) continue;
+                var release = a!["release_date"]?.GetValue<string>() ?? "";
+                var artistNames = a["artists"] is JsonArray ar
+                    ? string.Join(", ", ar.Select(x => x?["name"]?.GetValue<string>()).Where(x => !string.IsNullOrEmpty(x)))
+                    : "";
+                var album = new SpotifySearchAlbum(uri, a["name"]?.GetValue<string>() ?? "", artistNames,
+                    release.Length >= 4 && int.TryParse(release[..4], out var y) ? y : 0,
+                    a["total_tracks"]?.GetValue<int>() ?? 0, ImageUrl(a, 300), ImageUrl(a, 640));
+                list.Add(new SpotifySuggestion("Album", album.Name, artistNames, ImageUrl(a, 64), album));
+            }
+        return list;
     }
 
     /// <summary>The smallest image of an album that is at least <paramref name="minWidth"/> wide (or the largest).</summary>

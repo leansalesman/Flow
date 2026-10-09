@@ -25,23 +25,76 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- The big, round search field -->
+        <Style x:Key="BigSearchBox" TargetType="TextBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="Height" Value="54"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" Background="{DynamicResource SurfaceBrush}" CornerRadius="27"
+                                BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+                            <Grid Margin="22,0,52,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" FontSize="17"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" Margin="0,0,14,0"/>
+                                <TextBlock x:Name="Hint" Grid.Column="1" Text="{TemplateBinding Tag}" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" IsHitTestVisible="False" Visibility="Collapsed"/>
+                                <ScrollViewer x:Name="PART_ContentHost" Grid.Column="1" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="Hint" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- A row in the suggestion dropdown (never takes focus: typing continues in the search field) -->
+        <Style x:Key="SuggestionItem" TargetType="ListBoxItem">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="10" Padding="10,6">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceStrongBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
-    <Grid DataContext="{Binding Search}" Margin="28,0,16,16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <TextBlock Text="Search" Style="{StaticResource PageTitle}" Margin="0,0,0,14"/>
-        <StackPanel Grid.Row="1" Margin="0,0,0,12">
-            <TextBox x:Name="Box" Style="{StaticResource SearchBox}" Width="520" HorizontalAlignment="Left"
-                     Tag="Songs or albums on Spotify" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"/>
-            <TextBlock Text="{Binding Status}" Style="{StaticResource Tertiary}" Margin="2,10,0,0"/>
-        </StackPanel>
-
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+    <Grid x:Name="Root" DataContext="{Binding Search}" Margin="28,0,16,16" SizeChanged="Root_SizeChanged">
+        <!-- Results, under the search bar once it has moved to the top -->
+        <Grid x:Name="ResultsArea" Margin="0,84,0,0" Visibility="{Binding IsResultsMode, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Text="{Binding Status}" Style="{StaticResource Tertiary}" Margin="2,0,0,10"/>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
             <StackPanel Margin="0,0,12,0">
                 <!-- Songs -->
@@ -137,5 +190,77 @@
                 </ItemsControl>
             </StackPanel>
         </ScrollViewer>
+        </Grid>
+
+        <!-- The search bar: centered until there are results, then at the top -->
+        <StackPanel x:Name="Hero" VerticalAlignment="Top" HorizontalAlignment="Center" Width="660" Panel.ZIndex="2" Margin="0,14,0,0">
+            <StackPanel.RenderTransform>
+                <TranslateTransform x:Name="HeroShift"/>
+            </StackPanel.RenderTransform>
+            <StackPanel x:Name="Headline" HorizontalAlignment="Center" Margin="0,0,0,22"
+                        Visibility="{Binding IsResultsMode, Converter={StaticResource InverseBoolToVis}}">
+                <TextBlock Text="Search Spotify" FontFamily="{StaticResource DisplayFont}" FontSize="34" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                <TextBlock Text="Artists, songs and albums, from all of Spotify" Style="{StaticResource Tertiary}" FontSize="14"
+                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+            </StackPanel>
+            <Grid>
+                <TextBox x:Name="Box" Style="{StaticResource BigSearchBox}" Tag="What do you want to listen to?"
+                         Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
+                         PreviewKeyDown="Box_PreviewKeyDown" LostKeyboardFocus="Box_LostKeyboardFocus" GotKeyboardFocus="Box_GotKeyboardFocus"/>
+                <Button Style="{StaticResource IconButton}" HorizontalAlignment="Right" Margin="0,0,10,0" Width="34" Height="34" FontSize="11"
+                        Content="&#xE711;" ToolTip="Clear search" Focusable="False" Command="{Binding ClearCommand}"
+                        Visibility="{Binding Query, Converter={StaticResource BoolToVis}}"/>
+            </Grid>
+            <TextBlock Text="{Binding Status}" Style="{StaticResource Tertiary}" HorizontalAlignment="Center" Margin="0,12,0,0"
+                       Visibility="{Binding IsResultsMode, Converter={StaticResource InverseBoolToVis}}"/>
+
+            <!-- Suggestions as you type -->
+            <Border x:Name="Dropdown" Margin="0,8,0,0" CornerRadius="16" Padding="6" BorderThickness="1"
+                    Background="{DynamicResource MenuBrush}" BorderBrush="{DynamicResource MenuStrokeBrush}"
+                    Visibility="{Binding ShowSuggestions, Converter={StaticResource BoolToVis}}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.35"/>
+                </Border.Effect>
+                <ListBox x:Name="SuggestionList" ItemsSource="{Binding Suggestions}" SelectedIndex="{Binding SelectedSuggestion}"
+                         Focusable="False" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource SuggestionItem}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonUp="Suggestion_Click">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="40" Height="40" Margin="0,0,14,0">
+                                    <Border x:Name="Fallback" CornerRadius="6" Background="{DynamicResource SurfaceStrongBrush}">
+                                        <TextBlock x:Name="FallbackGlyph" Text="&#xEC4F;" Style="{StaticResource Glyph}" FontSize="14" Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                    </Border>
+                                    <Border x:Name="Pic" CornerRadius="6">
+                                        <Border.Background>
+                                            <ImageBrush ImageSource="{Binding ImageUrl, TargetNullValue={x:Null}}" Stretch="UniformToFill"/>
+                                        </Border.Background>
+                                    </Border>
+                                </Grid>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding SubLine}" Style="{StaticResource Tertiary}" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="&#xE76C;" Style="{StaticResource Glyph}" FontSize="11"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" Margin="10,0,4,0"/>
+                            </Grid>
+                            <DataTemplate.Triggers>
+                                <!-- Artists: round picture -->
+                                <DataTrigger Binding="{Binding IsArtist}" Value="True">
+                                    <Setter TargetName="Fallback" Property="CornerRadius" Value="20"/>
+                                    <Setter TargetName="Pic" Property="CornerRadius" Value="20"/>
+                                    <Setter TargetName="FallbackGlyph" Property="Text" Value="&#xE77B;"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </StackPanel>
     </Grid>
 </UserControl>

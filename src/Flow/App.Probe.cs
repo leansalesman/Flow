@@ -321,11 +321,23 @@ public partial class App
                 Snap(window, Path.Combine(outDir, $"7_playlist_{size}.png"));
             }
 
-            // Search page: a real (read-only) Spotify search, then open the first album found.
+            // Search page: idle (centered bar), typing (suggestions), an artist picked (results), an album opened.
             vm.CurrentPage = AppPage.Search;
-            vm.Search.Query = Environment.GetEnvironmentVariable("FLOW_PROBE_SEARCH") ?? "aphex twin";
-            await Task.Delay(5000);
-            Snap(window, Path.Combine(outDir, "10_search.png"));
+            vm.Search.Query = "";
+            await Task.Delay(1200);
+            Snap(window, Path.Combine(outDir, "10_search_idle.png"));
+            vm.Search.Query = Environment.GetEnvironmentVariable("FLOW_PROBE_SEARCH") ?? "bladee";
+            await Task.Delay(3500);
+            vm.Search.ShowSuggestions = vm.Search.Suggestions.Count > 0;
+            await Task.Delay(800);
+            Snap(window, Path.Combine(outDir, "10a_search_suggest.png"));
+            var artistPick = vm.Search.Suggestions.FirstOrDefault(x => x.IsArtist) ?? vm.Search.Suggestions.FirstOrDefault();
+            if (artistPick != null)
+            {
+                await vm.Search.PickAsync(artistPick);
+                await Task.Delay(3500);
+                Snap(window, Path.Combine(outDir, "10_search.png"));
+            }
             var firstAlbum = vm.Search.Albums.FirstOrDefault();
             if (firstAlbum != null)
             {
@@ -334,6 +346,7 @@ public partial class App
                 Snap(window, Path.Combine(outDir, "10b_search_album.png"));
                 vm.Library.SelectedAlbum = null;
             }
+
             // Favorites filter (in memory; the probe never saves settings).
             vm.CurrentPage = AppPage.Library;
             vm.Library.FavoritesOnly = true;
