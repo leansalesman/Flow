@@ -4,8 +4,6 @@ A lightweight music player for Windows 11 (x64), built with C# / WPF on .NET 10.
 **and** your Spotify library onto the same album shelves, with a modern take on the classic mid-2000s iTunes
 feel: big album art, a living visualizer, an LCD-style display, and six looks from see-through to dark brushed metal.
 
-Created by **Joseph Martinez**.
-
 ![Flow's Now Playing screen in the Dark Brushed Metal theme](docs/screenshots/now-playing-dark-brushed-metal.png)
 
 **At a glance**
