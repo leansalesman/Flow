@@ -1,8 +1,10 @@
 # Flow: the minimal and beautiful music player
 
-A lightweight music player for Windows 11 (x64), built with C# / WPF on .NET 10. It brings your local music
-**and** your Spotify library onto the same album shelves, with a modern take on the classic mid-2000s iTunes
-feel: big album art, a living visualizer, an LCD-style display, and six looks from see-through to dark brushed metal.
+A lightweight, minimal music player for Windows 11 (x64). Play almost any audio file (MP3, FLAC, ALAC, AAC,
+WAV, WMA, OGG, Opus, AIFF) along with your Spotify library and playlists, and organize it all your way: browse
+album shelves, filter by genre, edit song details and cover art, and arrange tracklists. All with a modern take on
+the classic mid-2000s iTunes feel: big album art, a living visualizer, an LCD-style display, and six looks from
+see-through to dark brushed metal.
 
 ![Flow's Now Playing screen in the Dark Brushed Metal theme](docs/screenshots/now-playing-dark-brushed-metal.png)
 
