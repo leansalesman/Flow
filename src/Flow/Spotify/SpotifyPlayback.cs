@@ -138,7 +138,11 @@ public sealed class SpotifyPlayback
     /// playback is started as "album, starting at this track": some Spotify desktop clients silently ignore
     /// bare track URIs sent through the Web API but honour album contexts.
     /// </summary>
-    public async Task<string?> PlayAsync(IReadOnlyList<string> uris, string? albumUri, double startSeconds, long firstDurationMs)
+    /// <param name="fallbackAlbumUri">
+    /// With a plain track list (albumUri null): the first song's album, used if the device won't start the list.
+    /// </param>
+    public async Task<string?> PlayAsync(IReadOnlyList<string> uris, string? albumUri, double startSeconds, long firstDurationMs,
+                                         string? fallbackAlbumUri = null)
     {
         SpotifyLog.Write($"Play requested: {uris.Count} track(s), first {uris[0]} in {albumUri ?? "(no album)"} at {startSeconds:0.0}s");
         long startMs = (long)(startSeconds * 1000);
@@ -195,6 +199,19 @@ public sealed class SpotifyPlayback
         // Verify the song really started.
         string? playingUri = r.Ok ? await WaitForStartAsync(uris[0], previousUri, startMs, gen) : null;
         if (gen != _generation) return Superseded();
+        if (playingUri == null && albumUri == null && fallbackAlbumUri != null)
+        {
+            // The device didn't take the track list: start the song inside its album instead (the old way).
+            SpotifyLog.Write("Track list not started - starting the song in its album instead");
+            albumUri = fallbackAlbumUri;
+            _albumUri = albumUri;
+            uris = new[] { uris[0] };
+            r = await _api.SendAsync(HttpMethod.Put, $"/me/player/play?device_id={device}",
+                new { context_uri = albumUri, offset = new { uri = uris[0] }, position_ms = startMs });
+            if (gen != _generation) return Superseded();
+            playingUri = r.Ok ? await WaitForStartAsync(uris[0], previousUri, startMs, gen) : null;
+            if (gen != _generation) return Superseded();
+        }
         if (playingUri == null && IsLocalDevice && !BuiltIn)
         {
             // Last resort for this PC: ask the Spotify app to open the track itself (bypasses the cloud command).
@@ -225,6 +242,17 @@ public sealed class SpotifyPlayback
         RetunePoll();
         _poll.Start();
         return null;
+    }
+
+    /// <summary>
+    /// Flow's queue changed (play next, reorder, shuffle…): stop following the rest of the track list Spotify was
+    /// given. When the current song ends Flow hands over the next song from its new order.
+    /// </summary>
+    public void TrimRunToCurrent()
+    {
+        if (!Active || _lastUri == null || _run.Count <= 1) return;
+        _run = new List<string> { _lastUri };
+        SpotifyLog.Write("Queue changed - Flow will hand over the next song itself");
     }
 
     private string? Superseded()

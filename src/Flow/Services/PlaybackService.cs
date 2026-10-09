@@ -58,6 +58,8 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         _loopback = new LoopbackTap(engine.Analyzer, engine.SampleRate);
         Flow.Visualizer.MusicVisualizer.AnyDrawingChanged += OnVisualizerDrawingChanged;
         _sp.ItemChanged += OnSpotifyItemChanged;
+        // Spotify was handed the upcoming songs in Flow's order; if the queue changes, Flow takes back the hand-off.
+        Queue.CollectionChanged += (_, _) => { if (_sp.BuiltIn && CurrentIsSpotify) _sp.TrimRunToCurrent(); };
         _sp.RunEnded += OnSpotifyRunEnded;
         _sp.ForeignItem += () =>
         {
@@ -787,17 +789,27 @@ public sealed class PlaybackService : ObservableObject, IDisposable
 
     // ---- Spotify ------------------------------------------------------------------------------
 
-    /// <summary>The consecutive Spotify tracks starting at index (handed to Spotify in one go).</summary>
     /// <summary>
-    /// Playback is started inside the track's album (some Spotify clients ignore bare track URIs),
-    /// so a run is the current track plus following queue items that are simply the album's next tracks.
-    /// Spotify then plays them gaplessly; anything else is handed over by Flow when the run ends.
+    /// The songs handed to Spotify in one go, so it plays them back to back with no gap.
+    /// <para>Built-in engine: the next Spotify songs in Flow's queue, in Flow's order (shuffled or not), sent as a
+    /// track list. Without this a shuffled album was started one song at a time inside its album, so when a song
+    /// ended Spotify carried on with the album's next track until Flow caught up and switched: a stutter at every
+    /// song change.</para>
+    /// <para>Spotify app: started inside the album (the desktop app ignores bare track lists), so a run is the
+    /// current song plus following queue items that are simply the album's next tracks; Flow hands over the rest.</para>
     /// </summary>
     private List<string> BuildSpotifyRun(int index)
     {
         var first = Queue[index];
         var run = new List<string> { first.SpotifyUri! };
-        if (_repeat == RepeatMode.One || first.SpotifyAlbumUri == null) return run;
+        if (_repeat == RepeatMode.One) return run;
+        if (_sp.BuiltIn)
+        {
+            for (int i = index + 1; i < Queue.Count && run.Count < 50 && Queue[i].IsSpotify; i++)
+                run.Add(Queue[i].SpotifyUri!);
+            return run;
+        }
+        if (first.SpotifyAlbumUri == null) return run;
         var prev = first;
         for (int i = index + 1; i < Queue.Count && run.Count < 50; i++)
         {
@@ -822,8 +834,11 @@ public sealed class PlaybackService : ObservableObject, IDisposable
             _engine.Play();
         }
         else StartLoopbackIfWanted();
-        var err = await _sp.PlayAsync(BuildSpotifyRun(index), Queue[index].SpotifyAlbumUri, startSeconds,
-            (long)Queue[index].Duration.TotalMilliseconds);
+        // Built-in engine: a plain track list in Flow's order (album context as the fallback). Spotify app: album context.
+        var album = Queue[index].SpotifyAlbumUri;
+        var err = _sp.BuiltIn
+            ? await _sp.PlayAsync(BuildSpotifyRun(index), null, startSeconds, (long)Queue[index].Duration.TotalMilliseconds, album)
+            : await _sp.PlayAsync(BuildSpotifyRun(index), album, startSeconds, (long)Queue[index].Duration.TotalMilliseconds);
         if (token != _loadToken) return;
         if (err != null)
         {
