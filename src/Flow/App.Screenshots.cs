@@ -245,13 +245,7 @@ public partial class App
         });
         text.Children.Add(new TextBlock
         {
-            Text = "Play almost any audio file and your Spotify library and playlists. Organize your albums and arrange tracklists.",
-            FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = dark, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 16, 0, 0),
-            LineHeight = 25, FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
-        });
-        text.Children.Add(new TextBlock
-        {
-            Text = "A modern take on the classic mid-2000s iTunes feel: big album art, a living visualizer, an LCD-style display, and six looks from see-through to dark brushed metal.",
+            Text = "Import your entire Spotify library and playlists, with a modern take on the classic mid-2000s iTunes feel: big album art, a living visualizer, an LCD-style display, and six looks from see-through to dark brushed metal.",
             FontSize = 17, Foreground = mid, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 16, 0, 0), LineHeight = 25,
             FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
         });
