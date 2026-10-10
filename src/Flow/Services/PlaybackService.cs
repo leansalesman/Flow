@@ -340,6 +340,13 @@ public sealed class PlaybackService : ObservableObject, IDisposable
             else { _ = LoadAsync(0, false, TimeSpan.Zero); return; }
         }
         if (_sp.BuiltIn && CurrentIsSpotify && IsPlaying && Queue[n].IsSpotify) { _ = SkipSpotifyAsync(n); return; }
+        // Local song to local song: the next one is already open, so switch to it straight away.
+        if (!CurrentIsSpotify && IsPlaying && n == _nextIndex && ReferenceEquals(_nextTrack, Queue[n]) && _engine.SkipToNext() is { } src)
+        {
+            _loadToken++;
+            OnEngineAdvanced(src);
+            return;
+        }
         _ = LoadAsync(n, true, TimeSpan.Zero);
     }
 
@@ -479,6 +486,9 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         PositionSeconds = 0;
         DurationSeconds = 0;
     }
+
+    /// <summary>Settings, Crossfade changed: Spotify songs on the built-in engine use it from the next change on.</summary>
+    public void CrossfadeChanged() => _sp.ApplyReadAhead();
 
     /// <summary>Applies ReplayGain settings to the playing track (and future tracks).</summary>
     public void RefreshReplayGain()
@@ -931,6 +941,7 @@ public sealed class PlaybackService : ObservableObject, IDisposable
         if (idx < 0) return;
         CurrentIndex = idx;
         DurationSeconds = Queue[idx].Duration.TotalSeconds;
+        _sp.NoteDuration((long)Queue[idx].Duration.TotalMilliseconds);
         PositionSeconds = 0;
         SetCurrent(Queue[idx]);
         _countedThisPlay = false;

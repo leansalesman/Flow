@@ -15,9 +15,21 @@ public sealed class TrackSource : IDisposable
     private readonly WaveStream _stream;
     private readonly int _outRate;
     private ISampleProvider _chain = null!;
+    private ISampleProvider _native = null!;   // decoded, stereo, at the file's own rate
+    private Feed? _feed;                        // what the resampler reads, when the file isn't at the output rate
+    private bool _started;
 
     public Track Track { get; }
     public float Gain { get; set; } = 1f;
+
+    /// <summary>
+    /// Gapless: the song to continue into when this one runs out. When both need resampling at the same rate, the
+    /// next song is fed through this song's resampler without a break, so the join has no restart click (a fresh
+    /// resampler starts from silence, which was audible as a tick at every join of 44.1 kHz songs on a 48 kHz
+    /// device). The engine then sees <see cref="HandedTo"/> and makes that song current.
+    /// </summary>
+    public TrackSource? Continuation { get; set; }
+    public TrackSource? HandedTo { get; private set; }
 
     private TrackSource(Track track, WaveStream stream, int outRate)
     {
@@ -78,8 +90,44 @@ public sealed class TrackSource : IDisposable
         int ch = sp.WaveFormat.Channels;
         if (ch == 1) sp = new MonoToStereoSampleProvider(sp);
         else if (ch > 2) sp = new StereoDownmixProvider(sp);
-        if (sp.WaveFormat.SampleRate != _outRate) sp = new WdlResamplingSampleProvider(sp, _outRate);
-        _chain = sp;
+        _native = sp;
+        if (sp.WaveFormat.SampleRate != _outRate)
+        {
+            _feed = new Feed(this);
+            _chain = new WdlResamplingSampleProvider(_feed, _outRate);
+        }
+        else
+        {
+            _feed = null;
+            _chain = sp;
+        }
+    }
+
+    private bool CanJoin(TrackSource previous) =>
+        !_started && _feed != null && previous._feed != null &&
+        _native.WaveFormat.SampleRate == previous._native.WaveFormat.SampleRate;
+
+    /// <summary>The resampler's input: this song, then (gapless) straight on into the next one.</summary>
+    private sealed class Feed : ISampleProvider
+    {
+        private TrackSource _owner;
+        public Feed(TrackSource owner) => _owner = owner;
+        public WaveFormat WaveFormat => _owner._native.WaveFormat;
+
+        public int Read(float[] buffer, int offset, int count)
+        {
+            int n = _owner._native.Read(buffer, offset, count);
+            if (n < count && _owner.Continuation is { } next && next.CanJoin(_owner))
+            {
+                next._chain = _owner._chain;
+                next._feed = this;
+                next._started = true;
+                _owner.HandedTo = next;
+                _owner = next;
+                n += next._native.Read(buffer, offset + n, count - n);
+            }
+            return n;
+        }
     }
 
     public TimeSpan Position => _stream.CurrentTime;
@@ -104,6 +152,7 @@ public sealed class TrackSource : IDisposable
 
     public int Read(float[] buffer, int offset, int count)
     {
+        _started = true;
         int n = _chain.Read(buffer, offset, count);
         float g = Gain;
         if (g != 1f)

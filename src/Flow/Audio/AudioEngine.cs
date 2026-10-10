@@ -111,10 +111,21 @@ public sealed class AudioEngine : IDisposable
     public void SetNext(TrackSource? next) => _pipe.SetNext(next);
 
     /// <summary>
+    /// Next pressed with the next song already opened: switches to it at once with a 30 ms crossfade (no click).
+    /// Returns the song now playing, or null when nothing was ready (load it normally then).
+    /// </summary>
+    public TrackSource? SkipToNext() => _pipe.SkipToNext();
+
+    /// <summary>
     /// Plays a live stream (built-in Spotify playback) instead of local tracks, through the same EQ, analyzer,
     /// volume and limiter. Setting it stops local tracks; loading a local track (or Stop) clears it. Null detaches.
     /// </summary>
     public void SetLiveInput(LiveInput? input) => _pipe.SetLive(input);
+#if DEBUG
+    /// <summary>Developer tests: the mixing pipeline itself (read offline), and a tap on everything it outputs.</summary>
+    internal ISampleProvider TestPipeline => _pipe;
+    internal static Action<float[], int, int>? TestTap;
+#endif
     public bool HasLiveInput => _pipe.HasLive;
 
     public void Play()
@@ -245,6 +256,26 @@ public sealed class AudioEngine : IDisposable
             if (!ReferenceEquals(old, next)) DisposeLater(old);
         }
 
+        public TrackSource? SkipToNext()
+        {
+            TrackSource? dropped;
+            TrackSource now;
+            lock (_sync)
+            {
+                if (_next == null || _current == null || _live != null) return null;
+                dropped = _outgoing;
+                _outgoing = _current;
+                _outgoing.Continuation = null;
+                _fadeTotal = Math.Max(1, _rate * 3 / 100);
+                _fadePos = 0;
+                _current = now = _next;
+                _next = null;
+                _gapFrames = 0;
+            }
+            DisposeLater(dropped);
+            return now;
+        }
+
         public void SetCurrentGain(float gain)
         {
             lock (_sync) { if (_current != null) _current.Gain = gain; }
@@ -321,6 +352,7 @@ public sealed class AudioEngine : IDisposable
                             if (len.TotalSeconds > CrossfadeSeconds * 2 && remaining.TotalSeconds <= CrossfadeSeconds)
                             {
                                 _outgoing = _current;
+                                _outgoing.Continuation = null;
                                 _fadeTotal = Math.Max(1, (long)(remaining.TotalSeconds * _rate));
                                 _fadePos = 0;
                                 _current = _next;
@@ -331,8 +363,17 @@ public sealed class AudioEngine : IDisposable
 
                         int want = count - filled;
                         int got;
+                        // Gapless: let the song run straight on into the next one (see TrackSource.Continuation).
+                        _current.Continuation = Gapless && _outgoing == null ? _next : null;
                         try { got = _current.Read(buffer, offset + filled, want); }
                         catch { got = 0; }
+                        if (_current.HandedTo is { } joined && ReferenceEquals(joined, _next))
+                        {
+                            toDispose.Add(_current);
+                            _current = joined;
+                            _next = null;
+                            advancedTo = joined;
+                        }
 
                         if (_outgoing != null && got > 0) MixOutgoing(buffer, offset + filled, got, toDispose);
 
@@ -362,6 +403,9 @@ public sealed class AudioEngine : IDisposable
             }
 
             _owner.Equalizer.Process(buffer, offset, count);
+#if DEBUG
+            TestTap?.Invoke(buffer, offset, count);
+#endif
             _owner.Analyzer.Write(buffer, offset, count);
             ApplyVolumeAndLimit(buffer, offset, count);
 

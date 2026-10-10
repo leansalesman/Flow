@@ -336,6 +336,7 @@ public sealed class SettingsViewModel : ObservableObject
             value = Math.Round(Math.Clamp(value, 0, 12));
             _settings.Current.CrossfadeSeconds = value;
             _engine.CrossfadeSeconds = value;
+            _pb.CrossfadeChanged();
             OnPropertyChanged();
             OnPropertyChanged(nameof(CrossfadeText));
         }

@@ -1,0 +1,45 @@
+diff --git a/src/main.rs b/src/main.rs
+index fb85803..37668a4 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1992,6 +1992,40 @@ async fn main() {
+         (backend)(device, format)
+     });
+ 
++    // Flow: report playback events on stderr the moment the player raises them (FLOW_EVENTS=1).
++    // They are raised on the player thread in step with the audio written to the pipe, so the host
++    // can switch songs exactly where one ends and the next begins.
++    if std::env::var_os("FLOW_EVENTS").is_some() {
++        let mut events = player.get_player_event_channel();
++        tokio::spawn(async move {
++            use librespot::playback::player::PlayerEvent;
++            while let Some(event) = events.recv().await {
++                let line = match event {
++                    PlayerEvent::Playing { track_id, position_ms, .. } => {
++                        format!("playing {} {position_ms}", track_id.to_uri().unwrap_or_default())
++                    }
++                    PlayerEvent::Paused { track_id, position_ms, .. } => {
++                        format!("paused {} {position_ms}", track_id.to_uri().unwrap_or_default())
++                    }
++                    PlayerEvent::EndOfTrack { track_id, .. } => {
++                        format!("end_of_track {}", track_id.to_uri().unwrap_or_default())
++                    }
++                    PlayerEvent::Stopped { track_id, .. } => {
++                        format!("stopped {}", track_id.to_uri().unwrap_or_default())
++                    }
++                    PlayerEvent::Seeked { track_id, position_ms, .. } => {
++                        format!("seeked {} {position_ms}", track_id.to_uri().unwrap_or_default())
++                    }
++                    PlayerEvent::Unavailable { track_id, .. } => {
++                        format!("unavailable {}", track_id.to_uri().unwrap_or_default())
++                    }
++                    _ => continue,
++                };
++                eprintln!("FLOWEVT {line}");
++            }
++        });
++    }
++
+     if let Some(player_event_program) = setup.player_event_program.clone() {
+         _event_handler = Some(EventHandler::new(
+             player.get_player_event_channel(),

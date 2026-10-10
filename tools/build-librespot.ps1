@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     librespot (https://github.com/librespot-org/librespot, MIT) has no reliable Windows binaries, so Flow builds
-    it from source. Only the always-available "pipe" audio backend is compiled in (Flow plays the audio itself),
+    it from source, with one small patch (librespot-flow-events.patch) that reports playback events to Flow. Only the always-available "pipe" audio backend is compiled in (Flow plays the audio itself),
     with rustls for TLS and no network discovery (zeroconf is disabled at runtime anyway).
 
     Requirements: Rust (https://rustup.rs, MSVC toolchain) and the Visual Studio 2022 Build Tools with the
@@ -36,6 +36,12 @@ if (-not (Test-Path (Join-Path $SourceDir ".git"))) {
     git -C $SourceDir checkout --quiet $Version
     if ($LASTEXITCODE -ne 0) { throw "Could not check out $Version" }
 }
+
+# Flow's one change: with FLOW_EVENTS set, librespot prints its playback events (song started, ended, paused,
+# seeked) on stderr as they happen, so Flow switches songs exactly where the audio does (no polling).
+git -C $SourceDir checkout --quiet -- src/main.rs
+git -C $SourceDir apply (Join-Path $PSScriptRoot "librespot-flow-events.patch")
+if ($LASTEXITCODE -ne 0) { throw "Could not apply librespot-flow-events.patch" }
 
 # 2. Build: no default features (which would add the rodio audio backend, native-tls and mDNS); just rustls.
 #    The pipe backend is always available.

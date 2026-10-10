@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
@@ -43,7 +43,8 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
         _systemCache = Path.Combine(root, "system");
         _audioCache = Path.Combine(root, "cache");
         _logPath = Path.Combine(settings.DataDir, "librespot.log");
-        Input = new LiveInput(SampleRate, Channels);
+        // Room for the longest crossfade (12 s) plus a second of read-ahead.
+        Input = new LiveInput(SampleRate, Channels, bufferSeconds: 13.5);
         RefreshIdleState();
     }
 
@@ -75,6 +76,11 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
     /// <summary>The running librespot process (changes when it restarts), or 0.</summary>
     public int ProcessId { get { try { return _proc?.Id ?? 0; } catch { return 0; } } }
     public event Action<string>? StatusChanged;
+    /// <summary>
+    /// librespot's own playback events (Flow's build reports them on stderr), raised on a background thread with
+    /// the stream position they happened at: a song starting, ending, pausing or seeking.
+    /// </summary>
+    public event Action<LibrespotEvent>? PlayerEvent;
     /// <summary>librespot is sending audio that nothing is playing (another device started playback on "Flow").</summary>
     public event Action? RemoteAudio;
 
@@ -82,9 +88,9 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
     {
         LibrespotState.Missing => "librespot.exe not found next to Flow.exe",
         LibrespotState.NotSetUp => "Not set up",
-        LibrespotState.SigningIn => "Signing in… approve Flow in the browser window",
+        LibrespotState.SigningIn => "Signing inâ€¦ approve Flow in the browser window",
         LibrespotState.Stopped => "Stopped (starts when you play a Spotify song)",
-        LibrespotState.Starting => "Starting…",
+        LibrespotState.Starting => "Startingâ€¦",
         LibrespotState.Ready => $"Ready as \"{DeviceName}\"",
         _ => "Error: " + (_lastError ?? "librespot stopped"),
     };
@@ -212,6 +218,7 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
         };
         if (s.LibrespotNormalisation) args.Add("--enable-volume-normalisation");
         foreach (var a in args) psi.ArgumentList.Add(a);
+        psi.Environment["FLOW_EVENTS"] = "1";   // see tools\librespot-flow-events.patch
 
         Process p;
         try { p = Process.Start(psi)!; }
@@ -222,7 +229,20 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
         Log($"Started (pid {p.Id}, {bitrate} kbps{(s.LibrespotNormalisation ? ", normalisation" : "")})");
 
         p.EnableRaisingEvents = true;
-        p.ErrorDataReceived += (_, e) => { if (e.Data != null) { _lastError = Clean(e.Data); Log(e.Data); } };
+        p.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data == null) return;
+            if (e.Data.StartsWith("FLOWEVT ", StringComparison.Ordinal))
+            {
+                // Stamped with where the stream is now: the event fires on librespot's player thread right
+                // after the audio before it was written, so this is where the next part begins.
+                long at = Input.WrittenFrames;
+                if (_proc == p && LibrespotEvent.TryParse(e.Data, at) is { } ev) PlayerEvent?.Invoke(ev);
+                return;
+            }
+            _lastError = Clean(e.Data);
+            Log(e.Data);
+        };
         p.BeginErrorReadLine();
         p.Exited += (_, _) => _ui.BeginInvoke(() => OnExited(p));
 
@@ -434,5 +454,18 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
             }
             catch { }
         }
+    }
+}
+
+/// <summary>A playback event from librespot: "playing", "paused", "end_of_track", "stopped", "seeked" or "unavailable".</summary>
+/// <param name="Frame">The stream position (<see cref="LiveInput.WrittenFrames"/>) when it happened.</param>
+public sealed record LibrespotEvent(string Kind, string Uri, long PositionMs, long Frame)
+{
+    public static LibrespotEvent? TryParse(string line, long frame)
+    {
+        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3) return null;
+        long pos = parts.Length > 3 && long.TryParse(parts[3], out var v) ? v : 0;
+        return new LibrespotEvent(parts[1], parts[2], pos, frame);
     }
 }

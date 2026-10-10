@@ -45,12 +45,18 @@ public sealed class SpotifyPlayback
     private readonly SettingsService? _settings;
     private readonly LibrespotHost? _librespot;
     private long _anchorMs, _anchorFrames;   // built-in engine: position = anchor + frames played since
+    private readonly Dispatcher _ui;
+    private (string Uri, long Frame)? _ended;  // built-in engine: the song librespot just finished, and where
+    private bool _eventsSeen;                  // librespot reports its own events (song changes follow the audio)
+    private bool _startPending;                // a play / next / seek was sent: its audio starts at librespot's next "playing"
 
     public SpotifyPlayback(SpotifyService api, Dispatcher ui, SettingsService? settings = null, LibrespotHost? librespot = null)
     {
         _api = api;
         _settings = settings;
         _librespot = librespot;
+        _ui = ui;
+        if (librespot != null) librespot.PlayerEvent += ev => ui.BeginInvoke(() => OnLibrespotEvent(ev));
         _poll = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMilliseconds(1000) };
         _poll.Tick += async (_, _) => await PollAsync();
         _app = new SpotifyAppWatcher(ui);
@@ -150,6 +156,7 @@ public sealed class SpotifyPlayback
         // Stop following the previous song immediately so its tracker can't react to this switch,
         // and show the new song's position (not the old one's) while we wait for Spotify.
         int gen = ++_generation;
+        _ended = null;
         string? previousUri = _lastUri;
         Active = false;
         _poll.Stop();
@@ -171,7 +178,7 @@ public sealed class SpotifyPlayback
         var (device, _) = dev.Value;
         if (!BuiltIn) _ = _app.StartAsync();
         RetunePoll();
-        if (OnBuiltInDevice) Anchor(startMs, flush: true);
+        if (OnBuiltInDevice) { Anchor(startMs, flush: true); ApplyReadAhead(); _startPending = true; }
 
         _deviceId = device;
         _albumUri = albumUri;
@@ -271,14 +278,18 @@ public sealed class SpotifyPlayback
         _pendingForeign = null;
         _pendingForeignCount = _pendingGoneCount = 0;
         var previous = _lastUri;
+        _ended = null;
         _lastUri = uri;
         _progressMs = 0;
         _durationMs = durationMs;
         _progressAt = DateTime.UtcNow;
         Anchor(0, flush: true);
+        _startPending = true;
         var r = await _api.SendAsync(HttpMethod.Post, $"/me/player/next?device_id={_deviceId}");
         if (gen != _generation) return true;   // a newer play request owns the player now
-        Anchor(0, flush: true);                // drop what the old song sent while the command was on its way
+        // Drop what the old song sent while the command was on its way (with librespot's events this happens
+        // exactly where the new song begins instead).
+        if (!EventsDrive) Anchor(0, flush: true);
         _lastCommand = DateTime.UtcNow;
         if (!r.Ok)
         {
@@ -405,9 +416,11 @@ public sealed class SpotifyPlayback
             ? new { context_uri = _albumUri, offset = new { uri = _lastUri }, position_ms = ms }
             : new { uris = _run.SkipWhile(u => u != _lastUri).ToArray(), position_ms = ms };
         Anchor(ms, flush: true);
+        _startPending = true;
+        _ended = null;
         _lastCommand = DateTime.UtcNow;
         var r = await _api.SendAsync(HttpMethod.Put, $"/me/player/play?device_id={_deviceId}", body);
-        Anchor(ms, flush: true);   // drop what the old position sent while the command was on its way
+        if (!EventsDrive) Anchor(ms, flush: true);   // drop what the old position sent while the command was on its way
         _lastCommand = DateTime.UtcNow;
         if (!r.Ok) SpotifyLog.Write($"Seek (replay at {ms / 1000.0:0.0}s): {(int)r.Status} {Short(r)}");
         return r.Ok;
@@ -584,6 +597,9 @@ public sealed class SpotifyPlayback
             if (!Active || gen != _generation) return;
 
             bool settled = (DateTime.UtcNow - _lastCommand).TotalMilliseconds > 1500;
+            // librespot's events drive song changes on the built-in engine; Spotify's state only backs them up
+            // once the current song has been heard to its end (Spotify runs ahead by what Flow has buffered).
+            bool waitForAudio = EventsDrive && !HeardToEnd;
             bool wasNearEnd = _durationMs > 0 && PositionSeconds * 1000 >= _durationMs - 4000;
             bool lastOfRun = _lastUri != null && _run.Count > 0 && _lastUri == _run[^1];
 
@@ -591,7 +607,7 @@ public sealed class SpotifyPlayback
             {
                 // Nothing playing anywhere any more (confirm on two polls before acting).
                 if (!settled) return;
-                if (_playing && lastOfRun && wasNearEnd)
+                if (_playing && lastOfRun && wasNearEnd && !waitForAudio)
                 {
                     if (++_pendingGoneCount >= 2) { SpotifyLog.Write("Run finished (player idle)"); Finish(); }
                     return;
@@ -612,6 +628,7 @@ public sealed class SpotifyPlayback
             {
                 if (_run.Contains(uri))
                 {
+                    if (waitForAudio) return;
                     // Spotify moved on to the next song of the album run - that's expected, follow it.
                     _pendingForeign = null;
                     _pendingForeignCount = 0;
@@ -637,6 +654,7 @@ public sealed class SpotifyPlayback
                 _pendingForeignCount = 0;
                 if (lastOfRun && wasNearEnd)
                 {
+                    if (waitForAudio) return;
                     SpotifyLog.Write($"Run finished; Spotify continued with {uri}");
                     Finish();                                   // our song ended, Spotify autoplay took over
                 }
@@ -659,7 +677,7 @@ public sealed class SpotifyPlayback
                 if (Math.Abs(progress - PositionSeconds * 1000) < 2500) Update(progress, duration, _playing);
                 return;
             }
-            if (!playing && _playing && lastOfRun && (progress == 0 || progress >= duration - 2500) && wasNearEnd)
+            if (!playing && _playing && lastOfRun && (progress == 0 || progress >= duration - 2500) && wasNearEnd && !waitForAudio)
             {
                 SpotifyLog.Write("Run finished (stopped at end)");
                 Finish();
@@ -669,6 +687,102 @@ public sealed class SpotifyPlayback
         }
         catch (Exception ex) { DiagLog.Write("Spotify poll failed: " + ex.Message); }
         finally { _polling = false; RetunePoll(); }
+    }
+
+    private void DropUntil(LibrespotEvent ev, int gen)
+    {
+        long pos = ev.PositionMs;
+        _librespot!.Input.DropBefore(ev.Frame, () => _ui.BeginInvoke(() =>
+        {
+            if (gen != _generation || !Active) return;
+            Anchor(pos, flush: false);
+        }));
+    }
+
+    private bool EventsDrive => _eventsSeen && OnBuiltInDevice;
+    private bool HeardToEnd => _durationMs > 0 && PositionSeconds * 1000 >= _durationMs - 300;
+
+    /// <summary>The song now playing is this long (Flow knows it from its queue when a song changes).</summary>
+    public void NoteDuration(long ms)
+    {
+        if (ms > 0) _durationMs = ms;
+    }
+
+    private double CrossfadeSeconds => Math.Clamp(_settings?.Current.CrossfadeSeconds ?? 0, 0, 12);
+
+    /// <summary>librespot may decode the crossfade length (plus a second) ahead, so the next song's start is ready.</summary>
+    public void ApplyReadAhead()
+    {
+        if (_librespot != null) _librespot.Input.AheadSeconds = CrossfadeSeconds + 1;
+    }
+
+    /// <summary>
+    /// Built-in engine: librespot's own events, stamped with their place in the audio stream. A song that ends and
+    /// the next one of the list starting is a natural change: Flow crossfades (Settings, Crossfade) or switches
+    /// gaplessly at that exact point, and shows the new song the moment it becomes audible. The end of the last song
+    /// Flow handed over ends the run as soon as it has been heard, so Flow's next song follows without waiting
+    /// for Spotify's state.
+    /// </summary>
+    private void OnLibrespotEvent(LibrespotEvent ev)
+    {
+        _eventsSeen = true;
+        if (!Active || !OnBuiltInDevice || _librespot == null) return;
+        int gen = _generation;
+        switch (ev.Kind)
+        {
+            case "end_of_track":
+                if (ev.Uri != _lastUri && !_run.Contains(ev.Uri)) return;
+                _ended = (ev.Uri, ev.Frame);
+                if (_run.Count > 0 && ev.Uri == _run[^1] && ev.Uri == _lastUri)
+                {
+                    _librespot.Input.At(ev.Frame, () => _ui.BeginInvoke(() =>
+                    {
+                        if (gen != _generation || !Active) return;
+                        SpotifyLog.Write("Run finished (end of the last song heard)");
+                        Finish();
+                    }));
+                }
+                break;
+
+            case "seeked":
+                // Seeked by another Spotify app: what was buffered from the old place goes.
+                _ended = null;
+                DropUntil(ev, gen);
+                break;
+
+            case "playing":
+                if (_startPending && !(_ended is { } e0 && ev.Uri != e0.Uri))
+                {
+                    // The song or position Flow asked for: skip the old audio that arrived meanwhile, and start the
+                    // clock exactly where the new audio does.
+                    _startPending = false;
+                    _ended = null;
+                    DropUntil(ev, gen);
+                    break;
+                }
+                if (_ended is { } end && ev.Uri != end.Uri && _run.Contains(ev.Uri) && ev.PositionMs < 1500)
+                {
+                    _ended = null;
+                    var uri = ev.Uri;
+                    double fade = CrossfadeSeconds;
+                    if (fade < 0.1 || (_durationMs > 0 && _durationMs < fade * 2000)) fade = 0;
+                    _librespot.Input.SetBoundary(end.Frame, fade, () => _ui.BeginInvoke(() =>
+                    {
+                        if (gen != _generation || !Active) return;
+                        _lastUri = uri;
+                        _pendingForeign = null;
+                        _pendingForeignCount = 0;
+                        _progressMs = 0;
+                        _progressAt = DateTime.UtcNow;
+                        Anchor(0, flush: false);
+                        SpotifyLog.Write($"Next song in the list{(fade > 0 ? $", crossfading {fade:0.#} s" : "")}: {uri}");
+                        ItemChanged?.Invoke(uri);
+                    }));
+                    ApplyReadAhead();
+                }
+                else _ended = null;
+                break;
+        }
     }
 
     private void Anchor(long ms, bool flush)

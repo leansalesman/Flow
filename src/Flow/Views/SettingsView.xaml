@@ -472,7 +472,7 @@
                     <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Gapless}" Margin="0,0,0,14">
                         <StackPanel>
                             <TextBlock Text="Gapless playback" Style="{StaticResource RowLabel}"/>
-                            <TextBlock Text="No silence between tracks — perfect for live albums and mixes" Style="{StaticResource Tertiary}"/>
+                            <TextBlock Text="No pause between your own songs (Spotify is always gapless)" Style="{StaticResource Tertiary}"/>
                         </StackPanel>
                     </CheckBox>
                     <DockPanel>

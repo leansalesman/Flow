@@ -44,6 +44,7 @@ public partial class App
             spotify.LoadCache();
             playback.Volume = 0;
             L($"engine built-in available: {LibrespotHost.IsAvailable}, volume {playback.Volume}, muted {playback.IsMuted}");
+            if (await SpotifyBusyAsync(spotify) is { } elsewhere) { L($"SKIPPED: the account is playing on {elsewhere}"); return; }
 
             // An album with at least five songs, played shuffled.
             var album = library.Snapshot().Where(t => t.IsSpotify && t.SpotifyAlbumUri != null)
@@ -220,6 +221,7 @@ public partial class App
             library.LoadFromDatabase();
             spotify.LoadCache();
             playback.Volume = 0;
+            if (await SpotifyBusyAsync(spotify) is { } elsewhere) { L($"SKIPPED: the account is playing on {elsewhere}"); return; }
             await librespot.EnsureRunningAsync();
 
             var album = library.Snapshot().Where(t => t.IsSpotify && t.SpotifyAlbumUri != null)
@@ -274,6 +276,14 @@ public partial class App
             L("DONE");
             Environment.Exit(0);
         }
+    }
+
+    /// <summary>The device name when the account is playing somewhere other than a test device (tests then skip).</summary>
+    private static async Task<string?> SpotifyBusyAsync(SpotifyService spotify)
+    {
+        var now = await spotify.GetAsync("/me/player");
+        var where = now.Json?["device"]?["name"]?.GetValue<string>();
+        return now.Json?["is_playing"]?.GetValue<bool>() == true && where != "Flow Test" ? where : null;
     }
 }
 #endif

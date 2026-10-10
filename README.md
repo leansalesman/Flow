@@ -101,7 +101,7 @@ next to it).
   - Double-click the art (or Back to Flow) to return; it remembers where you put it.
 - **Player bar**: iTunes-style controls with an LCD display on every page except Now Playing.
 - **Up Next queue**: play next, add to queue, drag to reorder.
-- **Audio**: 10-band EQ with presets, crossfade (0 to 12 s), gapless playback, ReplayGain (track / album).
+- **Audio**: 10-band EQ with presets, crossfade (0 to 12 s, for Spotify songs too), gapless playback, ReplayGain (track / album).
 - **Keeps your place**: the queue and position are saved as you listen and restored when Flow starts or updates.
 
 **Your music**
