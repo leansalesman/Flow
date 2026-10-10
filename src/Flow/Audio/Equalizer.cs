@@ -69,6 +69,14 @@ public sealed class Equalizer
                 l = _filters[0, b].Transform(l);
                 r = _filters[1, b].Transform(r);
             }
+            if (!float.IsFinite(l) || !float.IsFinite(r))
+            {
+                // A bad sample poisons the filters' memory and they'd stay silent: start them fresh.
+                for (int c = 0; c < 2; c++)
+                    for (int b = 0; b < bands; b++)
+                        _filters[c, b] = BiQuadFilter.PeakingEQ(_sampleRate, Math.Min(Frequencies[b], _sampleRate * 0.45f), 1.0f, _gains[b]);
+                l = r = 0;
+            }
             buffer[offset + i] = l;
             buffer[offset + i + 1] = r;
         }

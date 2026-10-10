@@ -41,6 +41,19 @@ public sealed class LiveInput : ISampleProvider
     /// <summary>Drops buffered audio (after play / seek / next / previous, so stale audio isn't heard).</summary>
     public void Flush() => _flushRequested = true;
 
+    /// <summary>
+    /// A new librespot process is about to write: forget any half-received sample from the old one and finish a
+    /// half-written stereo frame. Without this, a restart (e.g. turning on volume normalisation mid-song) glued the
+    /// new stream onto 1 to 3 stale bytes, so every sample after it was read misaligned: loud noise, and garbage
+    /// values that could leave the equalizer silent. Writer thread only (call before the new reader starts).
+    /// </summary>
+    public void ResetStream()
+    {
+        _carryCount = 0;
+        while (Volatile.Read(ref _written) % _channels != 0) Push(0f);
+        Flush();
+    }
+
     /// <summary>Writer side: raw little-endian float bytes from librespot's stdout.</summary>
     public void Write(byte[] bytes, int count)
     {
@@ -54,6 +67,8 @@ public sealed class LiveInput : ISampleProvider
 
     private void Push(float sample)
     {
+        // Never pass on garbage: anything that isn't a sane sample becomes silence.
+        if (!float.IsFinite(sample) || sample > 4f || sample < -4f) sample = 0f;
         // Wait for room (back-pressure on librespot); when nobody is reading, drop the oldest instead.
         int spins = 0;
         while (Volatile.Read(ref _written) - Volatile.Read(ref _read) >= _ring.Length)

@@ -409,6 +409,7 @@ public sealed class AudioEngine : IDisposable
 
         private static float SoftClip(float x)
         {
+            if (!float.IsFinite(x)) return 0f;   // never send garbage to the speakers
             const float knee = 0.95f;
             if (x > knee) return knee + (1 - knee) * MathF.Tanh((x - knee) / (1 - knee));
             if (x < -knee) return -knee - (1 - knee) * MathF.Tanh((-x - knee) / (1 - knee));

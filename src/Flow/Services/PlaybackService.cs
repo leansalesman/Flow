@@ -339,7 +339,27 @@ public sealed class PlaybackService : ObservableObject, IDisposable
             if (_repeat == RepeatMode.All) n = 0;
             else { _ = LoadAsync(0, false, TimeSpan.Zero); return; }
         }
+        if (_sp.BuiltIn && CurrentIsSpotify && IsPlaying && Queue[n].IsSpotify) { _ = SkipSpotifyAsync(n); return; }
         _ = LoadAsync(n, true, TimeSpan.Zero);
+    }
+
+    /// <summary>Built-in engine: Spotify's own "next" (the song is preloaded), or a normal start when it can't.</summary>
+    private async Task SkipSpotifyAsync(int n)
+    {
+        int token = ++_loadToken;
+        var track = Queue[n];
+        if (await _sp.SkipToNextInRunAsync(track.SpotifyUri!, (long)track.Duration.TotalMilliseconds))
+        {
+            if (token != _loadToken) return;
+            CurrentIndex = n;
+            PositionSeconds = 0;
+            DurationSeconds = track.Duration.TotalSeconds;
+            SpotifyLog.Write($"Song {n + 1} of {Queue.Count}: {track.Artist} - {track.Title} ({track.Path}), next");
+            SetCurrent(track);
+            _countedThisPlay = false;
+            return;
+        }
+        if (token == _loadToken) _ = LoadAsync(n, true, TimeSpan.Zero);
     }
 
     public void Previous()

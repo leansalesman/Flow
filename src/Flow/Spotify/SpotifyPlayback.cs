@@ -255,6 +255,42 @@ public sealed class SpotifyPlayback
         SpotifyLog.Write("Queue changed - Flow will hand over the next song itself");
     }
 
+    private (string Id, int Pid, DateTime At)? _ownDevice;
+
+    /// <summary>
+    /// Built-in engine: the next song is already the next one in the list Spotify was given, and librespot has it
+    /// loaded ahead, so a plain "next" starts it much faster than a new play command. False = use a play command.
+    /// </summary>
+    public async Task<bool> SkipToNextInRunAsync(string uri, long durationMs)
+    {
+        if (!Active || !OnBuiltInDevice || _lastUri == null || _seeking) return false;
+        int i = _run.IndexOf(_lastUri);
+        if (i < 0 || i + 1 >= _run.Count || _run[i + 1] != uri) return false;
+        int gen = _generation;
+        _lastCommand = DateTime.UtcNow;
+        _pendingForeign = null;
+        _pendingForeignCount = _pendingGoneCount = 0;
+        var previous = _lastUri;
+        _lastUri = uri;
+        _progressMs = 0;
+        _durationMs = durationMs;
+        _progressAt = DateTime.UtcNow;
+        Anchor(0, flush: true);
+        var r = await _api.SendAsync(HttpMethod.Post, $"/me/player/next?device_id={_deviceId}");
+        if (gen != _generation) return true;   // a newer play request owns the player now
+        Anchor(0, flush: true);                // drop what the old song sent while the command was on its way
+        _lastCommand = DateTime.UtcNow;
+        if (!r.Ok)
+        {
+            SpotifyLog.Write($"Next: {(int)r.Status} {Short(r)}; starting the song directly");
+            _lastUri = previous;
+            return false;
+        }
+        SpotifyLog.Write($"Next in the list: {uri}");
+        SetPlaying(true);
+        return true;
+    }
+
     private string? Superseded()
     {
         SpotifyLog.Write("Superseded by a newer play request");
@@ -417,6 +453,15 @@ public sealed class SpotifyPlayback
         {
             // Built-in engine: start librespot and wait for it to appear in Spotify Connect. Never launch the app.
             if (!await _librespot!.EnsureRunningAsync()) return null;
+            // Already playing on our own device with this librespot: no need to ask Spotify for the device list.
+            if (ChosenDeviceId == null && _ownDevice is { } own && own.Pid == _librespot.ProcessId && own.Pid != 0
+                && DateTime.UtcNow - own.At < TimeSpan.FromMinutes(20))
+            {
+                OnBuiltInDevice = true;
+                DeviceName = BuiltInName;
+                _deviceIsComputer = false;
+                return (own.Id, true);
+            }
             for (int i = 0; i < 15; i++)
             {
                 var d = await PickDeviceAsync();
@@ -512,6 +557,7 @@ public sealed class SpotifyPlayback
             DeviceName = builtInPick["name"]?.GetValue<string>();
             _deviceIsComputer = false;  // never fall back to opening the Spotify app
             OnBuiltInDevice = ReferenceEquals(builtInPick, own);
+            if (OnBuiltInDevice) _ownDevice = (builtInPick["id"]!.GetValue<string>(), _librespot!.ProcessId, DateTime.UtcNow);
             return (builtInPick["id"]!.GetValue<string>(), builtInPick["is_active"]?.GetValue<bool>() == true);
         }
         OnBuiltInDevice = false;

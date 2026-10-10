@@ -71,6 +71,9 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
     }
 
     public bool IsReady => State == LibrespotState.Ready;
+
+    /// <summary>The running librespot process (changes when it restarts), or 0.</summary>
+    public int ProcessId { get { try { return _proc?.Id ?? 0; } catch { return 0; } } }
     public event Action<string>? StatusChanged;
     /// <summary>librespot is sending audio that nothing is playing (another device started playback on "Flow").</summary>
     public event Action? RemoteAudio;
@@ -224,7 +227,16 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
         p.Exited += (_, _) => _ui.BeginInvoke(() => OnExited(p));
 
         // Raw PCM on stdout, read on a dedicated thread (never the thread pool, never the audio callback).
-        var reader = new Thread(() => ReadAudio(p)) { IsBackground = true, Name = "librespot audio", Priority = ThreadPriority.AboveNormal };
+        // A fresh stream: the previous reader finishes first (one writer at a time), then nothing left over from the
+        // previous librespot reaches the new one (see LiveInput.ResetStream).
+        var previous = _reader;
+        var reader = new Thread(() =>
+        {
+            previous?.Join(2000);
+            Input.ResetStream();
+            ReadAudio(p);
+        }) { IsBackground = true, Name = "librespot audio", Priority = ThreadPriority.AboveNormal };
+        _reader = reader;
         reader.Start();
 
         _ = MarkReadyAsync(p);
@@ -257,7 +269,10 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
                     lastNotice = DateTime.UtcNow;
                     _ui.BeginInvoke(() => RemoteAudio?.Invoke());
                 }
+                // Only the current process may write (a stopped one can still have bytes in flight).
+                if (!ReferenceEquals(_proc, p)) break;
                 Input.Write(buffer, n);
+                Interlocked.Exchange(ref _lastAudioTicks, DateTime.UtcNow.Ticks);
             }
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException) { }
@@ -293,10 +308,37 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
         });
     }
 
-    /// <summary>Restarts a running librespot so changed settings (name, bitrate, normalisation) take effect.</summary>
+    private DispatcherTimer? _pendingApply;
+    private long _lastAudioTicks;
+
+    /// <summary>librespot is sending audio right now (it goes quiet when paused or stopped).</summary>
+    private bool IsStreaming => Input.Attached &&
+        DateTime.UtcNow.Ticks - Interlocked.Read(ref _lastAudioTicks) < TimeSpan.FromSeconds(2).Ticks;
+    private Thread? _reader;
+
+    /// <summary>
+    /// Restarts a running librespot so changed settings (name, bitrate, normalisation) take effect. Never in the
+    /// middle of a song: while librespot is streaming the restart waits until playback pauses or stops (pressing
+    /// play afterwards starts the song again at the same spot).
+    /// </summary>
     public void ApplySettings()
     {
         if (_proc == null) { RefreshIdleState(); return; }
+        if (IsStreaming)
+        {
+            if (_pendingApply != null) return;
+            Log("Settings changed; restarting when playback pauses");
+            _pendingApply = new DispatcherTimer(DispatcherPriority.Background, _ui) { Interval = TimeSpan.FromSeconds(2) };
+            _pendingApply.Tick += (_, _) =>
+            {
+                if (IsStreaming) return;
+                _pendingApply?.Stop();
+                _pendingApply = null;
+                if (_proc != null) { Stop(); Start(); }
+            };
+            _pendingApply.Start();
+            return;
+        }
         Stop();
         Start();
     }
