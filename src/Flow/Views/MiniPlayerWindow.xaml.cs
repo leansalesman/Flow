@@ -58,6 +58,8 @@ public partial class MiniPlayerWindow : Window
     private MiniPlayerWindow(MainViewModel vm, SettingsService settings)
     {
         InitializeComponent();
+        TimelineSeek.Attach(Timeline);
+        TimelineSeek.Attach(LcdSlider);
         _vm = vm;
         _settings = settings;
         DataContext = vm;
@@ -356,21 +358,4 @@ public partial class MiniPlayerWindow : Window
         }
     }
 
-    // ---- Timeline (on the art, or in the bar) ----
-
-    private void Timeline_Down(object sender, MouseButtonEventArgs e) => _vm.Playback.IsUserSeeking = true;
-
-    private void Timeline_Up(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is Slider s) _vm.Playback.Seek(s.Value);
-        _vm.Playback.IsUserSeeking = false;
-    }
-
-    private void Timeline_DragStarted(object sender, DragStartedEventArgs e) => _vm.Playback.IsUserSeeking = true;
-
-    private void Timeline_DragCompleted(object sender, DragCompletedEventArgs e)
-    {
-        if (sender is Slider s) _vm.Playback.Seek(s.Value);
-        _vm.Playback.IsUserSeeking = false;
-    }
 }

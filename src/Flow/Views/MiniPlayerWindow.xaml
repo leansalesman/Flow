@@ -122,9 +122,7 @@
                                                Foreground="#E6FFFFFF" VerticalAlignment="Center"/>
                                     <Slider x:Name="Timeline" Grid.Column="1" Style="{StaticResource FlowSlider}" Margin="4,0"
                                             Minimum="0" Maximum="{Binding Playback.DurationSeconds}"
-                                            Value="{Binding Playback.PositionSeconds, Mode=OneWay}"
-                                            PreviewMouseLeftButtonDown="Timeline_Down" PreviewMouseLeftButtonUp="Timeline_Up"
-                                            Thumb.DragStarted="Timeline_DragStarted" Thumb.DragCompleted="Timeline_DragCompleted"/>
+                                            Value="{Binding Playback.PositionSeconds, Mode=OneWay}"/>
                                     <TextBlock Grid.Column="2" Text="{Binding Playback.DurationSeconds, Converter={StaticResource SecondsToTime}}" FontSize="10"
                                                Foreground="#E6FFFFFF" VerticalAlignment="Center" TextAlignment="Right"/>
                                 </Grid>
@@ -205,9 +203,7 @@
                                                Style="{StaticResource Tertiary}" FontSize="10" VerticalAlignment="Center"/>
                                     <Slider x:Name="LcdSlider" Grid.Column="1" Style="{StaticResource FlowSlider}" Margin="8,0"
                                             Minimum="0" Maximum="{Binding Playback.DurationSeconds}"
-                                            Value="{Binding Playback.PositionSeconds, Mode=OneWay}"
-                                            PreviewMouseLeftButtonDown="Timeline_Down" PreviewMouseLeftButtonUp="Timeline_Up"
-                                            Thumb.DragStarted="Timeline_DragStarted" Thumb.DragCompleted="Timeline_DragCompleted"/>
+                                            Value="{Binding Playback.PositionSeconds, Mode=OneWay}"/>
                                     <TextBlock x:Name="LcdDuration" Grid.Column="2" Text="{Binding Playback.DurationSeconds, Converter={StaticResource SecondsToTime}}"
                                                Style="{StaticResource Tertiary}" FontSize="10" VerticalAlignment="Center"/>
                                 </Grid>

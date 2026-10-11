@@ -2,6 +2,8 @@
 // Developer aid, left out of release builds.
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
+using System.Windows.Input;
 using Flow.Audio;
 using Flow.Library;
 using Flow.Services;
@@ -483,6 +485,75 @@ public partial class App
             L("DONE");
             Environment.Exit(0);
         }
+    }
+
+    /// <summary>
+    /// Developer test: `Flow.exe --test-timeline &lt;file&gt;`: a muted local song plays; the real timeline slider (in an
+    /// off-screen window) gets a press on the line, is held while the position keeps updating, then released. The
+    /// song must jump to where the line was pressed.
+    /// </summary>
+    private async void RunTimelineProbe(string outFile)
+    {
+        var log = new List<string>();
+        void L(string s) { log.Add($"[{DateTime.Now:HH:mm:ss.fff}] {s}"); File.WriteAllLines(outFile, log); }
+        int fails = 0;
+        void Check(bool ok, string what) { if (!ok) fails++; L((ok ? "  ok    " : "  FAIL  ") + what); }
+        try
+        {
+            var settings = new SettingsService();
+            settings.Load();
+            settings.Current.Volume = 0; settings.Current.Muted = true; settings.Current.Shuffle = false; settings.Current.Repeat = RepeatMode.Off;
+            var library = new LibraryService(settings, settings.DataDir);
+            var engine = new AudioEngine();
+            var spotify = new SpotifyService(settings, library);
+            var pb = new PlaybackService(engine, library, settings, new SpotifyPlayback(spotify, Dispatcher, settings), Dispatcher);
+            pb.Volume = 0; pb.IsMuted = true;
+
+            var dir = Path.Combine(Path.GetTempPath(), "flow-gapless-test");
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "timeline.wav");
+            int rate = engine.SampleRate;
+            using (var w = new WaveFileWriter(path, new WaveFormat(rate, 16, 2)))
+            {
+                var b = new byte[rate * 4];
+                for (int i = 0; i < rate; i++) { short v = (short)(8000 * Math.Sin(2 * Math.PI * 440 * i / rate)); BitConverter.TryWriteBytes(b.AsSpan(i * 4), v); BitConverter.TryWriteBytes(b.AsSpan(i * 4 + 2), v); }
+                for (int sec = 0; sec < 60; sec++) w.Write(b, 0, b.Length);
+            }
+            var track = new Track { Path = path, Title = "Timeline test", Artist = "Test", Album = "Test", ArtKey = "test", Duration = TimeSpan.FromSeconds(60) };
+
+            var slider = new System.Windows.Controls.Slider { Style = (Style)FindResource("FlowSlider"), Width = 560, Minimum = 0 };
+            slider.SetBinding(System.Windows.Controls.Primitives.RangeBase.MaximumProperty, new System.Windows.Data.Binding(nameof(PlaybackService.DurationSeconds)) { Source = pb });
+            slider.SetBinding(System.Windows.Controls.Primitives.RangeBase.ValueProperty, new System.Windows.Data.Binding(nameof(PlaybackService.PositionSeconds)) { Source = pb, Mode = System.Windows.Data.BindingMode.OneWay });
+            Flow.Views.TimelineSeek.Attach(slider);
+            var win = new Window { Left = -20000, Top = -20000, Width = 600, Height = 60, WindowStyle = WindowStyle.None, ShowInTaskbar = false, ShowActivated = false, Content = slider };
+            win.Show();
+
+            for (int round = 0; round < 3; round++)
+            {
+                pb.PlayTracks(new List<Track> { track }, 0);
+                for (int i = 0; i < 100 && !(pb.IsPlaying && pb.PositionSeconds > 2); i++) await Task.Delay(50);
+                double before = pb.PositionSeconds;
+                var down = new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent };
+                slider.RaiseEvent(down);
+                double pressed = slider.Value;
+                int hold = 300 + round * 400;
+                await Task.Delay(hold);   // the position keeps ticking meanwhile
+                double held = slider.Value;
+                var up = new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent };
+                slider.RaiseEvent(up);
+                await Task.Delay(30);
+                double after = engine.Position.TotalSeconds;
+                L($"held {hold} ms: playing at {before:0.0} s, pressed the line at {pressed:0.0} s, knob at {held:0.0} s on release, song now at {after:0.0} s");
+                Check(Math.Abs(pressed - before) > 5, "the press moved the knob to the spot");
+                Check(Math.Abs(held - pressed) < 0.01, "the knob stayed there while held");
+                Check(Math.Abs(after - Math.Min(pressed, 59.75)) < 0.5, "the song jumped to the spot");
+            }
+            win.Close();
+            pb.Pause();
+            L(fails == 0 ? "PASS" : $"CHECK: {fails} failed");
+        }
+        catch (Exception ex) { L("FAILED: " + ex); }
+        finally { L("DONE"); Environment.Exit(0); }
     }
 
     private static double SilenceMs(string gapLine)

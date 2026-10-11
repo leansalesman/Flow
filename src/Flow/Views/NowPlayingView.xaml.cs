@@ -30,6 +30,7 @@ public partial class NowPlayingView : UserControl
     public NowPlayingView()
     {
         InitializeComponent();
+        TimelineSeek.Attach(Timeline);
         _holdTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(420) };
         _holdTimer.Tick += HoldTick;
         DataContextChanged += (_, _) => Attach();
@@ -140,31 +141,6 @@ public partial class NowPlayingView : UserControl
         catch { return true; }
     }
 
-    // ---- Timeline seeking ----
-
-    private void Timeline_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (_vm != null) _vm.Playback.IsUserSeeking = true;
-    }
-
-    private void Timeline_PreviewMouseUp(object sender, MouseButtonEventArgs e)
-    {
-        if (_vm == null) return;
-        _vm.Playback.Seek(Timeline.Value);
-        _vm.Playback.IsUserSeeking = false;
-    }
-
-    private void Timeline_DragStarted(object sender, DragStartedEventArgs e)
-    {
-        if (_vm != null) _vm.Playback.IsUserSeeking = true;
-    }
-
-    private void Timeline_DragCompleted(object sender, DragCompletedEventArgs e)
-    {
-        if (_vm == null) return;
-        _vm.Playback.Seek(Timeline.Value);
-        _vm.Playback.IsUserSeeking = false;
-    }
 
     // ---- Previous / Next: tap to skip, hold to scrub ----
 

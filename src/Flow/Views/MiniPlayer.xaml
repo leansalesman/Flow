@@ -99,11 +99,7 @@
                                        Style="{StaticResource Tertiary}" FontSize="11" VerticalAlignment="Center"/>
                             <Slider x:Name="Timeline" Grid.Column="1" Style="{StaticResource FlowSlider}" Height="16" Margin="4,0"
                                     Minimum="0" Maximum="{Binding Playback.DurationSeconds}"
-                                    Value="{Binding Playback.PositionSeconds, Mode=OneWay}"
-                                    PreviewMouseLeftButtonDown="Timeline_PreviewMouseDown"
-                                    PreviewMouseLeftButtonUp="Timeline_PreviewMouseUp"
-                                    Thumb.DragStarted="Timeline_DragStarted"
-                                    Thumb.DragCompleted="Timeline_DragCompleted"/>
+                                    Value="{Binding Playback.PositionSeconds, Mode=OneWay}"/>
                             <TextBlock Grid.Column="2" Text="{Binding Playback.DurationSeconds, Converter={StaticResource SecondsToTime}}"
                                        Style="{StaticResource Tertiary}" FontSize="11" TextAlignment="Right" VerticalAlignment="Center"/>
                         </Grid>

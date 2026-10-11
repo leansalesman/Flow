@@ -10,6 +10,39 @@ using Flow.ViewModels;
 namespace Flow.Views;
 
 /// <summary>Builds the shared right-click menu for one or more tracks.</summary>
+/// <summary>
+/// Timeline sliders: click anywhere on the line to jump there, or drag the knob.
+/// <para>A click is handled by the Slider itself (it jumps the knob to the click and marks the click as handled), so
+/// a plain XAML PreviewMouseLeftButtonDown handler never ran: the position kept updating 5 times a second, pulled the
+/// knob back to where the song was before the mouse came up, and the seek went there, i.e. nowhere. These handlers
+/// also hear handled clicks, hold the position still from the press, and seek once on release.</para>
+/// </summary>
+public static class TimelineSeek
+{
+    public static void Attach(Slider slider)
+    {
+        slider.AddHandler(UIElement.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler((_, _) => Begin()), handledEventsToo: true);
+        slider.AddHandler(UIElement.PreviewMouseLeftButtonUpEvent, new MouseButtonEventHandler((_, _) => End(slider)), handledEventsToo: true);
+        slider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragStartedEvent,
+            new System.Windows.Controls.Primitives.DragStartedEventHandler((_, _) => Begin()), handledEventsToo: true);
+        slider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragCompletedEvent,
+            new System.Windows.Controls.Primitives.DragCompletedEventHandler((_, _) => End(slider)), handledEventsToo: true);
+    }
+
+    private static void Begin()
+    {
+        if (Flow.Services.PlaybackService.Instance is { } pb) pb.IsUserSeeking = true;
+    }
+
+    private static void End(Slider slider)
+    {
+        // Mouse up and the end of a knob drag both arrive for one gesture: seek once.
+        if (Flow.Services.PlaybackService.Instance is not { } pb || !pb.IsUserSeeking) return;
+        pb.IsUserSeeking = false;
+        pb.Seek(slider.Value);
+    }
+}
+
 public static class TrackMenu
 {
     public static void Populate(ContextMenu menu, MainViewModel vm, IReadOnlyList<Track> tracks, params MenuItem[] extra)
