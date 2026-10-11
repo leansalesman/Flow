@@ -165,6 +165,8 @@ public sealed class SpotifyPlayback
         _progressMs = startMs;
         _durationMs = firstDurationMs;
         _progressAt = DateTime.UtcNow;
+        // Fade the old song out right away, not after the device lookup below.
+        if (_eventsSeen && BuiltIn && _librespot != null) { _librespot.Input.Flush(); _librespot.Input.Hush(); }
 
         var dev = await EnsureDeviceAsync();
         if (gen != _generation) return Superseded();
@@ -178,7 +180,7 @@ public sealed class SpotifyPlayback
         var (device, _) = dev.Value;
         if (!BuiltIn) _ = _app.StartAsync();
         RetunePoll();
-        if (OnBuiltInDevice) { Anchor(startMs, flush: true); ApplyReadAhead(); _startPending = true; }
+        if (OnBuiltInDevice) { Anchor(startMs, flush: true); ApplyReadAhead(); StartPending(); }
 
         _deviceId = device;
         _albumUri = albumUri;
@@ -284,7 +286,7 @@ public sealed class SpotifyPlayback
         _durationMs = durationMs;
         _progressAt = DateTime.UtcNow;
         Anchor(0, flush: true);
-        _startPending = true;
+        StartPending();
         var r = await _api.SendAsync(HttpMethod.Post, $"/me/player/next?device_id={_deviceId}");
         if (gen != _generation) return true;   // a newer play request owns the player now
         // Drop what the old song sent while the command was on its way (with librespot's events this happens
@@ -416,7 +418,7 @@ public sealed class SpotifyPlayback
             ? new { context_uri = _albumUri, offset = new { uri = _lastUri }, position_ms = ms }
             : new { uris = _run.SkipWhile(u => u != _lastUri).ToArray(), position_ms = ms };
         Anchor(ms, flush: true);
-        _startPending = true;
+        StartPending();
         _ended = null;
         _lastCommand = DateTime.UtcNow;
         var r = await _api.SendAsync(HttpMethod.Put, $"/me/player/play?device_id={_deviceId}", body);
@@ -689,12 +691,19 @@ public sealed class SpotifyPlayback
         finally { _polling = false; RetunePoll(); }
     }
 
+    /// <summary>A play / next / seek is on its way: the old audio fades out now, the new audio starts at librespot's "playing".</summary>
+    private void StartPending()
+    {
+        _startPending = true;
+        if (EventsDrive) _librespot!.Input.Hush();
+    }
+
     private void DropUntil(LibrespotEvent ev, int gen)
     {
         long pos = ev.PositionMs;
         _librespot!.Input.DropBefore(ev.Frame, () => _ui.BeginInvoke(() =>
         {
-            if (gen != _generation || !Active) return;
+            if (gen != _generation) return;
             Anchor(pos, flush: false);
         }));
     }
@@ -726,7 +735,9 @@ public sealed class SpotifyPlayback
     private void OnLibrespotEvent(LibrespotEvent ev)
     {
         _eventsSeen = true;
-        if (!Active || !OnBuiltInDevice || _librespot == null) return;
+        if (!OnBuiltInDevice || _librespot == null) return;
+        // A song Flow just asked for starts before Spotify confirms the play request (Active comes after that).
+        if (!Active && !(_startPending && ev.Kind == "playing")) return;
         int gen = _generation;
         switch (ev.Kind)
         {

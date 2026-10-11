@@ -131,6 +131,24 @@ public sealed class LiveInput : ISampleProvider
 
     private long _dropBefore = -1;
     private Action? _onDropped;
+    private bool _hush;
+    private long _hushFrames, _hushSince;
+
+    /// <summary>
+    /// Next, play or seek was pressed: fade the old song out over 20 ms and stay silent until the new audio begins
+    /// (<see cref="DropBefore"/>). The old song keeps being read at the normal pace, so librespot is never held up
+    /// while it loads the new one; it just isn't heard. Without this, the read-ahead kept the old song playing for
+    /// as long as the new one took to load (up to a few seconds when it had to be fetched first).
+    /// </summary>
+    public void Hush()
+    {
+        lock (_marks)
+        {
+            if (!_hush) _hushFrames = 0;
+            _hush = true;
+            _hushSince = Environment.TickCount64;
+        }
+    }
 
     /// <summary>
     /// librespot started writing from a new place (a seek, or a song Flow asked for) at stream frame
@@ -179,7 +197,10 @@ public sealed class LiveInput : ISampleProvider
                 if (_onDropped != null) (due ??= new()).Add(_onDropped);
                 _dropBefore = -1;
                 _onDropped = null;
+                _hush = false;   // the new audio starts here
             }
+            // Never stay silent for good if the new audio's start went unreported.
+            if (_hush && Environment.TickCount64 - _hushSince > 6000) _hush = false;
             int ch = _channels, i = 0, frames = 0;
             while (i + ch <= count)
             {
@@ -233,6 +254,15 @@ public sealed class LiveInput : ISampleProvider
                 frames++;
             }
             Volatile.Write(ref _read, r);
+            if (_hush)
+            {
+                int fadeFrames = _rate / 50;
+                for (int k = 0; k < i; k += ch, _hushFrames++)
+                {
+                    float g = _hushFrames >= fadeFrames ? 0f : 1f - (float)_hushFrames / fadeFrames;
+                    for (int c = 0; c < ch; c++) buffer[offset + k + c] *= g;
+                }
+            }
             if (i < count) Array.Clear(buffer, offset + i, count - i);
             Interlocked.Add(ref _framesConsumed, frames);
             for (int k = _at.Count - 1; k >= 0; k--)

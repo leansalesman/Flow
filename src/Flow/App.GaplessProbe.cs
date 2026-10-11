@@ -415,6 +415,26 @@ public partial class App
                 Check(spLog.Count(x => x.Contains("crossfading 3 s")) == 2 && spLog.Count == 4, "Spotify -> Spotify: the switches came from librespot's events, the last two crossfaded");
                 s.CrossfadeSeconds = 0;
 
+                // Next early in a song (the next one isn't loaded ahead yet): the old song must stop at once,
+                // not keep playing from the read-ahead while the new one loads.
+                {
+                    pb.PlayTracks(album.Skip(5).ToList(), 0);
+                    await WaitFor(() => pb.IsPlaying && pb.PositionSeconds > 2 && watch.HeardRecently, 20);
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var t0 = Stopwatch.StartNew();
+                        pb.Next();
+                        await Task.Delay(200);
+                        double lastOld = 200 - watch.LastLoudMsAgo;
+                        bool back = await WaitFor(() => watch.LastLoudMsAgo < 30, 10);
+                        L($"Next {(k == 0 ? "2 s" : "1.5 s")} into a song: old song last heard {lastOld:0} ms after pressing, new song heard after {t0.ElapsedMilliseconds} ms");
+                        // (When the new song is ready within the wait, the sound heard last is the new song itself.)
+                        Check(lastOld < 100 || t0.ElapsedMilliseconds < 260, "Next early in a song: the old song stops at once");
+                        Check(back, "Next early in a song: the new song plays");
+                        await Task.Delay(1500);
+                    }
+                }
+
                 // Local to Spotify.
                 {
                     var mixed = new List<Track> { Local("Local tone", 440, 4), album[2] };
@@ -429,6 +449,7 @@ public partial class App
                     Check(moved, "Local -> Spotify: the Spotify song plays after the local one");
                     var gap = gaps.Where(g => g.Contains("silence")).Select(SilenceMs).DefaultIfEmpty(0).Max();
                     L($"    gap heard between them: {gap:0} ms");
+                    Check(gap < 700, "Local -> Spotify: the gap is under 0.7 s (a play request to Spotify)");
                 }
                 // Spotify to local.
                 {
@@ -481,6 +502,8 @@ public partial class App
         private long _lastLoud;
 
         public GapWatch(int rate) => _rate = rate;
+
+        public double LastLoudMsAgo => Stopwatch.GetElapsedTime(Interlocked.Read(ref _lastLoud)).TotalMilliseconds;
 
         public bool HeardRecently => Stopwatch.GetElapsedTime(Interlocked.Read(ref _lastLoud)).TotalMilliseconds < 300;
 

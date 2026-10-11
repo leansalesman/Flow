@@ -219,6 +219,8 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
         if (s.LibrespotNormalisation) args.Add("--enable-volume-normalisation");
         foreach (var a in args) psi.ArgumentList.Add(a);
         psi.Environment["FLOW_EVENTS"] = "1";   // see tools\librespot-flow-events.patch
+        // Warnings only, plus the session's sign-in lines (to see that it reconnected after a network drop).
+        psi.Environment["RUST_LOG"] = "warn,libmdns=warn,librespot_core::session=info";
 
         Process p;
         try { p = Process.Start(psi)!; }
@@ -242,6 +244,8 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
             }
             _lastError = Clean(e.Data);
             Log(e.Data);
+            if (e.Data.Contains("Spirc shut down unexpectedly", StringComparison.Ordinal)) WatchReconnect(p);
+            else if (e.Data.Contains("Authenticated as", StringComparison.Ordinal)) Interlocked.Increment(ref _signIns);
         };
         p.BeginErrorReadLine();
         p.Exited += (_, _) => _ui.BeginInvoke(() => OnExited(p));
@@ -325,6 +329,24 @@ public sealed class LibrespotHost : ObservableObject, IDisposable
         _ = Task.Delay(TimeSpan.FromSeconds(delay), cts.Token).ContinueWith(t =>
         {
             if (!t.IsCanceled) _ui.BeginInvoke(() => { if (_proc == null && !_stopping && HasCredentials) Start(); });
+        });
+    }
+
+    private int _signIns;
+
+    /// <summary>
+    /// librespot lost its connection to Spotify (a network drop) and is reconnecting. If the network is still down,
+    /// its reconnect can hang for good, leaving Flow's player dead until Flow restarts. When it hasn't signed in again
+    /// within 30 s, restart it: the restart retries with a growing delay until the network is back.
+    /// </summary>
+    private void WatchReconnect(Process p)
+    {
+        int before = Volatile.Read(ref _signIns);
+        _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ =>
+        {
+            if (_proc != p || Volatile.Read(ref _signIns) != before) return;
+            Log("Did not reconnect to Spotify after a network drop; restarting");
+            KillQuietly(p);   // Exited -> OnExited restarts it
         });
     }
 

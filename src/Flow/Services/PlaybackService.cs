@@ -589,8 +589,18 @@ public sealed class PlaybackService : ObservableObject, IDisposable
 
         if (_sp.Active)
         {
-            await _sp.DeactivateAsync(pause: true);
-            if (token != _loadToken) return;
+            if (_sp.BuiltIn)
+            {
+                // Spotify's audio comes through Flow: stop hearing it now, and let Spotify's pause follow without
+                // making the local song wait for a round trip to Spotify (which can hang while the network is down).
+                DetachLive();
+                _ = _sp.DeactivateAsync(pause: true);
+            }
+            else
+            {
+                await _sp.DeactivateAsync(pause: true);
+                if (token != _loadToken) return;
+            }
         }
         _loopback.Stop();
 
